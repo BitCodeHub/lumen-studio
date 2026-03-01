@@ -10,6 +10,15 @@ function isPhotorealistic(prompt) {
   return keywords.some(k => lower.includes(k));
 }
 
+// Detect food photography
+function isFoodPhoto(prompt) {
+  const keywords = ['food', 'dish', 'meal', 'bowl', 'plate', 'pho', 'ramen', 
+    'sushi', 'pasta', 'pizza', 'burger', 'steak', 'salad', 'soup', 'noodle',
+    'bun bo', 'banh mi', 'cuisine', 'restaurant', 'cooking', 'recipe', 'delicious'];
+  const lower = prompt.toLowerCase();
+  return keywords.some(k => lower.includes(k));
+}
+
 // Juggernaut XL workflow for photorealistic images (OpenAI quality)
 function buildPhotorealisticWorkflow(prompt) {
   const enhancedPrompt = `${prompt}, masterpiece, ultra high resolution, photorealistic, RAW photo, 8k uhd, dslr, professional photography, cinematic lighting, 85mm lens, shallow depth of field, natural skin texture, detailed skin pores, studio lighting, sharp focus`;
@@ -63,6 +72,33 @@ function buildFLUXWorkflow(prompt) {
   };
 }
 
+// Food Photography workflow - photorealistic restaurant quality
+function buildFoodWorkflow(prompt) {
+  const enhancedPrompt = `${prompt}, professional food photography, shot on Canon EOS R5, 100mm macro lens, f/2.8 aperture, natural window lighting, soft shadows, steam rising, wooden table background, shallow depth of field, food magazine cover quality, michelin star presentation, appetizing, mouth-watering, high-end restaurant, RAW photo, 8k uhd, photorealistic, natural colors, realistic textures`;
+  const negativePrompt = `artificial, plastic, fake, oversaturated, neon colors, cartoon, illustration, drawing, painting, cgi, 3d render, blurry, grainy, low quality, watermark, text, ugly, deformed, unrealistic lighting, flat lighting, harsh shadows, amateur`;
+  
+  return {
+    "1": { "inputs": { "ckpt_name": "flux1-dev.safetensors" }, "class_type": "CheckpointLoaderSimple" },
+    "2": { "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
+    "3": { "inputs": { "text": enhancedPrompt, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "4": { "inputs": { "text": negativePrompt, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { 
+      "seed": Math.floor(Math.random() * 1e9), 
+      "steps": 30, 
+      "cfg": 4, 
+      "sampler_name": "dpmpp_2m", 
+      "scheduler": "karras", 
+      "denoise": 1, 
+      "model": ["1", 0], 
+      "positive": ["3", 0], 
+      "negative": ["4", 0], 
+      "latent_image": ["2", 0] 
+    }, "class_type": "KSampler" },
+    "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
+    "7": { "inputs": { "filename_prefix": "food", "images": ["6", 0] }, "class_type": "SaveImage" }
+  };
+}
+
 // SDXL workflow for fast general images
 function buildSDXLWorkflow(prompt) {
   return {
@@ -106,6 +142,9 @@ export default async function handler(req, res) {
     if (model === 'juggernaut' || model === 'photo' || model === 'photorealistic') {
       workflow = buildPhotorealisticWorkflow(prompt);
       selectedModel = 'Juggernaut XL v9';
+    } else if (model === 'food') {
+      workflow = buildFoodWorkflow(prompt);
+      selectedModel = 'FLUX.1-dev (Food Photography)';
     } else if (model === 'flux' || model === 'flux-dev') {
       workflow = buildFLUXWorkflow(prompt);
       selectedModel = 'FLUX.1-dev';
@@ -113,8 +152,11 @@ export default async function handler(req, res) {
       workflow = buildSDXLWorkflow(prompt);
       selectedModel = 'SDXL Base';
     } else {
-      // Auto-detect: photorealistic content uses Juggernaut, else FLUX
-      if (isPhotorealistic(prompt)) {
+      // Auto-detect based on prompt content
+      if (isFoodPhoto(prompt)) {
+        workflow = buildFoodWorkflow(prompt);
+        selectedModel = 'FLUX.1-dev (Food Photography)';
+      } else if (isPhotorealistic(prompt)) {
         workflow = buildPhotorealisticWorkflow(prompt);
         selectedModel = 'Juggernaut XL v9';
       } else {
