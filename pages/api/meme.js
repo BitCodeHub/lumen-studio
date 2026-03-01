@@ -194,10 +194,7 @@ async function generateMemeAI(templateKey, texts) {
 
   const data = await response.json();
   return { 
-    prompt_id: data.prompt_id,
-    check_at: `${COMFYUI_URL}/view?filename=meme_00001_.png`,
-    method: 'ai',
-    note: 'AI-generated meme (22 sec processing)'
+    prompt_id: data.prompt_id
   };
 }
 
@@ -294,19 +291,15 @@ export default async function handler(req, res) {
       status: 'generating',
       template: memeTemplate.name,
       prompt_id: result.prompt_id,
-      check_at: result.check_at,
       texts: memeTexts,
-      method: 'ai',
-      message: `🎨 Generating ${memeTemplate.name} meme with AI...`,
-      note: 'Processing on DGX Spark (~22 seconds)'
+      message: 'Creating your meme...'
     });
 
   } catch (error) {
     console.error('Meme generation error:', error);
     return res.status(500).json({
       status: 'error',
-      message: error.message,
-      hint: 'Try again or use a different template'
+      message: 'Unable to create meme. Please try again.'
     });
   }
 }

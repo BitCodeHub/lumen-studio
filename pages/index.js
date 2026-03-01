@@ -64,7 +64,7 @@ const TEMPLATES = {
 
 export default function Home() {
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: '🎨 Welcome to Lumen Studio!\n\nType what you want to create and I will generate it using your DGX Spark GPU.\n\nOr select a template below to get started.' }
+    { role: 'assistant', content: '🎨 Welcome to Lumen Studio!\n\nDescribe what you want to create, or select a template below to get started.' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -123,22 +123,22 @@ export default function Home() {
         data = await res.json();
         
         if (data.status === 'success') {
-          // Instant meme from Imgflip
+          // Instant meme
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: '😂 ' + data.template + ' meme generated!\n\n',
+            content: '😂 ' + data.template + ' meme created!',
             image: data.url
           }]);
         } else if (data.status === 'generating') {
-          // AI-generated meme (takes ~22 sec)
+          // AI-generated meme
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: '🎨 ' + data.message + '\n\n⏳ Processing on DGX Spark GPU...\n\n🔗 View results: ' + data.check_at
+            content: '🎨 Creating your ' + (data.template || 'meme') + '...\n\n⏳ This takes about 20 seconds.'
           }]);
         } else {
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: '❌ Error: ' + (data.message || data.error) + '\n\n' + (data.hint || '')
+            content: '❌ Something went wrong. Please try again.'
           }]);
         }
       } else {
@@ -153,19 +153,19 @@ export default function Home() {
         if (data.status === 'generating') {
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: '✅ ' + data.message + '\n\n⏳ Processing on DGX Spark GPU...\nGeneration takes ~22 seconds.\n\n🔗 View results: ' + data.check_at
+            content: '✅ Creating your image...\n\n⏳ This takes about 20 seconds.'
           }]);
         } else {
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: '❌ Error: ' + data.message + '\n\n' + (data.hint || '')
+            content: '❌ Something went wrong. Please try again.'
           }]);
         }
       }
     } catch (error) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: '❌ Connection error. Please try again.'
+        content: '❌ Unable to connect. Please try again in a moment.'
       }]);
     }
     
@@ -182,7 +182,6 @@ export default function Home() {
       <header>
         <h1>🎨 Lumen Studio</h1>
         <p>AI-Powered Creative Platform</p>
-        <span className="badge">⚡ DGX Spark Connected</span>
       </header>
 
       <main>
@@ -234,7 +233,7 @@ export default function Home() {
         </div>
       </main>
 
-      <footer>Powered by DGX Spark • Lumen AI</footer>
+      <footer>Powered by Lumen AI</footer>
 
       <style jsx global>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -243,7 +242,6 @@ export default function Home() {
         header { text-align: center; padding: 20px 0; }
         header h1 { font-size: 1.8rem; }
         header p { color: #888; font-size: 0.9rem; }
-        .badge { display: inline-block; background: #22c55e33; color: #22c55e; padding: 4px 12px; border-radius: 12px; font-size: 0.8rem; margin-top: 8px; }
         .chat { background: #1a1a2e; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
         .messages { height: 250px; overflow-y: auto; margin-bottom: 12px; }
         .msg { padding: 10px 14px; border-radius: 10px; margin-bottom: 8px; max-width: 85%; }

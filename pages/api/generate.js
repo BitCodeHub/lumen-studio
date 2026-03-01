@@ -79,17 +79,14 @@ export default async function handler(req, res) {
     return res.status(200).json({
       status: 'generating',
       prompt_id: data.prompt_id,
-      message: '🎨 Generating: "' + prompt + '"',
-      check_at: COMFYUI_URL + '/view?filename=lumen_studio_00001_.png',
-      note: 'Image will appear in ComfyUI output folder in ~22 seconds'
+      message: 'Creating your image...'
     });
 
   } catch (error) {
     console.error('Generation error:', error);
     return res.status(500).json({
       status: 'error',
-      message: error.message,
-      hint: 'Try refreshing or check if DGX Spark is online'
+      message: 'Unable to generate image. Please try again.'
     });
   }
 }
