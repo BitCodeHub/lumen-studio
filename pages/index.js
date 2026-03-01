@@ -101,7 +101,23 @@ export default function Home() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadedFilename, setUploadedFilename] = useState(null);
   const [dragOver, setDragOver] = useState(false);
+  const [showAdCreator, setShowAdCreator] = useState(false);
+  const [adForm, setAdForm] = useState({
+    productName: '',
+    tagline: '',
+    headline: '',
+    ctaText: 'Learn More',
+    style: 'apple',
+    duration: '30s',
+    musicStyle: 'upbeat',
+    voiceover: 'none',
+    voiceoverText: '',
+  });
+  const [adLogo, setAdLogo] = useState(null);
+  const [adProductImages, setAdProductImages] = useState([]);
   const fileInputRef = useRef(null);
+  const logoInputRef = useRef(null);
+  const productImagesRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -407,6 +423,208 @@ export default function Home() {
         </div>
       )}
 
+      {/* Marketing Ad Creator Modal */}
+      {showAdCreator && (
+        <div className="modal-overlay" onClick={() => setShowAdCreator(false)}>
+          <div className="ad-creator-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>🎬 Create Marketing Ad</h2>
+              <button className="close-btn" onClick={() => setShowAdCreator(false)}>×</button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Product Name *</label>
+                  <input 
+                    type="text" 
+                    placeholder="iPhone 17 Pro Max Case"
+                    value={adForm.productName}
+                    onChange={e => setAdForm({...adForm, productName: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Style</label>
+                  <select value={adForm.style} onChange={e => setAdForm({...adForm, style: e.target.value})}>
+                    <option value="apple">Apple (Minimalist)</option>
+                    <option value="nike">Nike (Dynamic)</option>
+                    <option value="tech">Tech Startup</option>
+                    <option value="luxury">Luxury Brand</option>
+                    <option value="social">Social Media</option>
+                    <option value="corporate">Corporate</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Tagline</label>
+                  <input 
+                    type="text" 
+                    placeholder="Protect Your Investment"
+                    value={adForm.tagline}
+                    onChange={e => setAdForm({...adForm, tagline: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Duration</label>
+                  <select value={adForm.duration} onChange={e => setAdForm({...adForm, duration: e.target.value})}>
+                    <option value="6s">6 seconds (Story)</option>
+                    <option value="15s">15 seconds (Reel)</option>
+                    <option value="30s">30 seconds (Standard)</option>
+                    <option value="60s">60 seconds (Full)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-section">
+                <h3>📝 Custom Text</h3>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Headline</label>
+                    <input 
+                      type="text" 
+                      placeholder="The Future of Protection"
+                      value={adForm.headline}
+                      onChange={e => setAdForm({...adForm, headline: e.target.value})}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>CTA Button Text</label>
+                    <input 
+                      type="text" 
+                      placeholder="Shop Now"
+                      value={adForm.ctaText}
+                      onChange={e => setAdForm({...adForm, ctaText: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="form-section">
+                <h3>🎵 Audio</h3>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Music Style</label>
+                    <select value={adForm.musicStyle} onChange={e => setAdForm({...adForm, musicStyle: e.target.value})}>
+                      <option value="upbeat">Upbeat Electronic</option>
+                      <option value="dramatic">Dramatic Cinematic</option>
+                      <option value="chill">Chill Ambient</option>
+                      <option value="corporate">Corporate Inspirational</option>
+                      <option value="hiphop">Hip-Hop Energy</option>
+                      <option value="none">No Music</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Voiceover</label>
+                    <select value={adForm.voiceover} onChange={e => setAdForm({...adForm, voiceover: e.target.value})}>
+                      <option value="none">No Voiceover</option>
+                      <option value="tts-male">AI Voice (Male)</option>
+                      <option value="tts-female">AI Voice (Female)</option>
+                      <option value="upload">Upload Audio</option>
+                    </select>
+                  </div>
+                </div>
+                {adForm.voiceover.startsWith('tts') && (
+                  <div className="form-group full-width">
+                    <label>Voiceover Script</label>
+                    <textarea 
+                      placeholder="Enter the script for AI voiceover..."
+                      value={adForm.voiceoverText}
+                      onChange={e => setAdForm({...adForm, voiceoverText: e.target.value})}
+                      rows={3}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="form-section">
+                <h3>📸 Assets</h3>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Logo</label>
+                    <input type="file" ref={logoInputRef} style={{display: 'none'}} accept="image/*" 
+                      onChange={e => e.target.files[0] && setAdLogo(URL.createObjectURL(e.target.files[0]))} />
+                    <button className="upload-asset-btn" onClick={() => logoInputRef.current?.click()}>
+                      {adLogo ? '✅ Logo Added' : '📎 Upload Logo'}
+                    </button>
+                  </div>
+                  <div className="form-group">
+                    <label>Product Images</label>
+                    <input type="file" ref={productImagesRef} style={{display: 'none'}} accept="image/*" multiple
+                      onChange={e => setAdProductImages([...e.target.files].map(f => URL.createObjectURL(f)))} />
+                    <button className="upload-asset-btn" onClick={() => productImagesRef.current?.click()}>
+                      {adProductImages.length > 0 ? `✅ ${adProductImages.length} Images` : '📎 Upload Images'}
+                    </button>
+                  </div>
+                </div>
+                {(adLogo || adProductImages.length > 0) && (
+                  <div className="asset-preview">
+                    {adLogo && <img src={adLogo} alt="Logo" className="preview-thumb" />}
+                    {adProductImages.map((img, i) => <img key={i} src={img} alt={`Product ${i+1}`} className="preview-thumb" />)}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="cancel-btn" onClick={() => setShowAdCreator(false)}>Cancel</button>
+              <button 
+                className="create-btn" 
+                disabled={!adForm.productName || loading}
+                onClick={async () => {
+                  if (!adForm.productName) return;
+                  setShowAdCreator(false);
+                  setMessages(prev => [...prev, { 
+                    role: 'user', 
+                    content: `🎬 Create ${adForm.duration} ${adForm.style} style marketing ad for "${adForm.productName}"${adForm.tagline ? ` - "${adForm.tagline}"` : ''}`
+                  }]);
+                  setLoading(true);
+                  
+                  try {
+                    const res = await fetch('/api/ad-video', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        prompt: `${adForm.duration} ${adForm.style} style ad for ${adForm.productName}`,
+                        style: adForm.style,
+                        duration: adForm.duration,
+                        product: adForm.productName,
+                        tagline: adForm.tagline,
+                        headline: adForm.headline,
+                        ctaText: adForm.ctaText,
+                        musicStyle: adForm.musicStyle,
+                        voiceover: adForm.voiceover,
+                        voiceoverText: adForm.voiceoverText,
+                      })
+                    });
+                    const data = await res.json();
+                    
+                    if (data.status === 'generating' && data.sceneJobs) {
+                      const idx = messages.length + 1;
+                      setMessages(prev => [...prev, { 
+                        role: 'assistant', 
+                        status: 'loading', 
+                        operation: 'ad-video',
+                        scenes: data.scenes,
+                        content: `🎬 Creating ${data.duration}s Hollywood-grade ${data.template} ad...\n\n${data.scenes.map((s, i) => `Scene ${i+1}: ${s.type} (${s.duration}s)`).join('\n')}\n\nGenerating ${data.sceneJobs.length} scenes with Remotion...`
+                      }]);
+                      setLoading(false);
+                      pollForAdVideo(data.sceneJobs, idx);
+                    }
+                  } catch (error) {
+                    setMessages(prev => [...prev, { role: 'assistant', content: 'Error: ' + error.message, status: 'error' }]);
+                    setLoading(false);
+                  }
+                }}
+              >
+                {loading ? '⏳ Creating...' : '🎬 Create Ad'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar */}
       <aside className="sidebar">
         <header className="sidebar-header">
@@ -448,7 +666,13 @@ export default function Home() {
 
               <div className="capabilities-grid">
                 {Object.entries(CAPABILITIES).map(([key, cap]) => (
-                  <button key={key} className={'capability-card' + (activeMode === key ? ' active' : '')} onClick={() => setActiveMode(activeMode === key ? null : key)}>
+                  <button key={key} className={'capability-card' + (activeMode === key ? ' active' : '')} onClick={() => {
+                    if (key === 'ads') {
+                      setShowAdCreator(true);
+                    } else {
+                      setActiveMode(activeMode === key ? null : key);
+                    }
+                  }}>
                     <span className="cap-icon">{cap.icon}</span>
                     <div>
                       <span className="cap-title">{cap.title}</span>
@@ -657,7 +881,44 @@ export default function Home() {
           .input-box { padding: 2px; }
           .upload-btn, .send-btn { width: 40px; height: 40px; }
           .input-box input { padding: 10px 8px; font-size: 14px; }
+          .ad-creator-modal { width: 95%; max-height: 90vh; }
+          .form-row { flex-direction: column; }
         }
+        
+        /* Marketing Ad Creator Modal */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .ad-creator-modal { background: #151515; border: 1px solid #333; border-radius: 16px; width: 100%; max-width: 700px; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid #222; }
+        .modal-header h2 { margin: 0; font-size: 20px; color: #fff; }
+        .close-btn { background: none; border: none; color: #666; font-size: 28px; cursor: pointer; padding: 0; line-height: 1; }
+        .close-btn:hover { color: #fff; }
+        .modal-body { flex: 1; overflow-y: auto; padding: 24px; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 24px; border-top: 1px solid #222; }
+        
+        .form-row { display: flex; gap: 16px; margin-bottom: 16px; }
+        .form-group { flex: 1; }
+        .form-group.full-width { flex: none; width: 100%; }
+        .form-group label { display: block; font-size: 13px; color: #888; margin-bottom: 6px; font-weight: 500; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px 14px; background: #1a1a1a; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 14px; outline: none; font-family: inherit; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #22c55e; }
+        .form-group input::placeholder, .form-group textarea::placeholder { color: #555; }
+        .form-group select { cursor: pointer; }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+        
+        .form-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid #222; }
+        .form-section h3 { font-size: 14px; color: #22c55e; margin: 0 0 16px 0; font-weight: 600; }
+        
+        .upload-asset-btn { width: 100%; padding: 12px; background: #1a1a1a; border: 1px dashed #444; border-radius: 8px; color: #888; cursor: pointer; font-size: 14px; transition: all 0.15s; }
+        .upload-asset-btn:hover { border-color: #22c55e; color: #fff; background: #222; }
+        
+        .asset-preview { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .preview-thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid #333; }
+        
+        .cancel-btn { padding: 12px 24px; background: #333; border: none; border-radius: 8px; color: #fff; cursor: pointer; font-size: 14px; }
+        .cancel-btn:hover { background: #444; }
+        .create-btn { padding: 12px 32px; background: #22c55e; border: none; border-radius: 8px; color: #000; font-weight: 600; cursor: pointer; font-size: 14px; }
+        .create-btn:hover { background: #1ea34b; }
+        .create-btn:disabled { opacity: 0.5; cursor: not-allowed; }
       `}</style>
     </div>
   );
