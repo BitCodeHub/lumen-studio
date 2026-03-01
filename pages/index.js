@@ -814,20 +814,7 @@ export default function Home() {
         <div className="input-area">
           <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*,video/*" onChange={(e) => handleFileUpload(e.target.files[0])} />
           
-          {/* LoRA Selector */}
-          {availableLoras.length > 0 && (
-            <div className="lora-selector">
-              <label>Model Enhancement:</label>
-              <select value={selectedLora} onChange={e => setSelectedLora(e.target.value)}>
-                <option value="auto">🎯 Auto (Category-based)</option>
-                <option value="none">📷 Base Model Only</option>
-                {availableLoras.filter(l => l.includes('_lora')).map(lora => (
-                  <option key={lora} value={lora}>✨ {lora.replace('.safetensors', '').replace('_', ' ')}</option>
-                ))}
-              </select>
-              {trainedLoras > 0 && <span className="trained-badge">{trainedLoras} trained</span>}
-            </div>
-          )}
+          {/* LoRA selection happens automatically in backend - no user-facing UI */}
           
           <div className="input-box">
             <button className="upload-btn" onClick={() => fileInputRef.current?.click()}>📎</button>
