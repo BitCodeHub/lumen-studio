@@ -19,13 +19,14 @@ const CAPABILITIES = {
     title: 'Edit',
     icon: '🖼',
     desc: 'Transform your images',
+    requiresUpload: true,
     templates: [
-      { name: 'Upscale 4K', prompt: 'Upscale to 4K quality', needsUpload: true },
-      { name: 'Remove Background', prompt: 'Remove background', needsUpload: true },
-      { name: 'Face Enhance', prompt: 'Enhance and restore face', needsUpload: true },
-      { name: 'Colorize', prompt: 'Colorize this image', needsUpload: true },
-      { name: 'Style Transfer', prompt: 'Apply artistic style', needsUpload: true },
-      { name: 'Inpaint/Fix', prompt: 'Fix and repair this image', needsUpload: true },
+      { name: 'Upscale 4K', prompt: 'Upscale to 4K quality', action: 'upscale' },
+      { name: 'Remove Background', prompt: 'Remove background', action: 'remove_bg' },
+      { name: 'Face Enhance', prompt: 'Enhance and restore face', action: 'face_enhance' },
+      { name: 'Colorize', prompt: 'Colorize this image', action: 'colorize' },
+      { name: 'Style Transfer', prompt: 'Apply artistic style to', action: 'style' },
+      { name: 'Inpaint/Fix', prompt: 'Fix and repair this image', action: 'inpaint' },
     ]
   },
   video: {
@@ -60,11 +61,12 @@ const CAPABILITIES = {
     title: 'Animate',
     icon: '🎭',
     desc: 'Bring images to life',
+    requiresUpload: true,
     templates: [
-      { name: 'Image to Video', prompt: 'Animate this image', needsUpload: true },
-      { name: 'Add Motion', prompt: 'Add natural motion', needsUpload: true },
-      { name: 'Camera Move', prompt: 'Add cinematic camera movement', needsUpload: true },
-      { name: 'Loop', prompt: 'Create seamless loop', needsUpload: true },
+      { name: 'Image to Video', prompt: 'Animate this image with natural motion', action: 'animate' },
+      { name: 'Add Motion', prompt: 'Add subtle natural motion', action: 'motion' },
+      { name: 'Camera Move', prompt: 'Add cinematic camera movement', action: 'camera' },
+      { name: 'Loop Animation', prompt: 'Create seamless looping animation', action: 'loop' },
     ]
   },
   meme: {
@@ -111,10 +113,12 @@ export default function Home() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeMode, setActiveMode] = useState(null);
+  const [selectedTemplate, setSelectedTemplate] = useState(null); // Store selected action
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadedFilename, setUploadedFilename] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [showAdCreator, setShowAdCreator] = useState(false);
+  const [showUploadPrompt, setShowUploadPrompt] = useState(false); // New: show upload prompt
   const [adForm, setAdForm] = useState({
     productName: '',
     tagline: '',
@@ -136,6 +140,85 @@ export default function Home() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Auto-process when file is uploaded with a selected template
+  useEffect(() => {
+    if (uploadedFilename && selectedTemplate && !loading) {
+      processWithTemplate();
+    }
+  }, [uploadedFilename, selectedTemplate]);
+
+  const processWithTemplate = async () => {
+    if (!uploadedFilename || !selectedTemplate) return;
+    
+    const template = selectedTemplate;
+    const filename = uploadedFilename;
+    
+    // Clear states
+    setSelectedTemplate(null);
+    setShowUploadPrompt(false);
+    
+    setMessages(prev => [...prev, { 
+      role: 'user', 
+      content: template.name,
+      image: uploadedFile
+    }]);
+    
+    setLoading(true);
+    
+    try {
+      let res, data;
+      
+      if (activeMode === 'animate') {
+        // Image to video
+        res = await fetch('/api/video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            filename: filename, 
+            prompt: template.prompt, 
+            videoType: 'image_to_video',
+            action: template.action
+          })
+        });
+      } else {
+        // Image editing
+        res = await fetch('/api/edit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            filename: filename, 
+            prompt: template.prompt,
+            action: template.action
+          })
+        });
+      }
+      
+      data = await res.json();
+      
+      // Clear uploaded file
+      setUploadedFile(null);
+      setUploadedFilename(null);
+      
+      if (data.status === 'generating' && data.prompt_id) {
+        const idx = messages.length + 1;
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          status: 'loading', 
+          operation: activeMode === 'animate' ? 'video' : 'edit' 
+        }]);
+        setLoading(false);
+        pollForImage(data.prompt_id, idx);
+        return;
+      } else if (data.error) {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Error: ' + error.message, status: 'error' }]);
+    }
+    
+    setLoading(false);
+  };
 
   const detectMemeTemplate = (text) => {
     const templates = ['drake:', 'expanding_brain:', 'distracted_bf:', 'this_is_fine:', 'stonks:', 'change_my_mind:'];
@@ -159,7 +242,6 @@ export default function Home() {
     return adKeywords.some(kw => lower.includes(kw));
   };
 
-  // Poll for multi-scene ad video completion
   const pollForAdVideo = async (sceneJobs, messageIndex) => {
     let attempts = 0;
     const poll = async () => {
@@ -171,7 +253,6 @@ export default function Home() {
         });
         const data = await res.json();
         
-        // Update progress
         setMessages(prev => {
           const updated = [...prev];
           const msg = updated[messageIndex];
@@ -183,14 +264,12 @@ export default function Home() {
         });
         
         if (data.allComplete) {
-          // All scenes ready - compose video
           setMessages(prev => {
             const updated = [...prev];
             updated[messageIndex] = { ...updated[messageIndex], content: '🎬 All scenes ready! Composing final video...' };
             return updated;
           });
           
-          // Request composition
           const composeRes = await fetch('/api/ad-compose', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -209,32 +288,13 @@ export default function Home() {
               };
               return updated;
             });
-          } else {
-            setMessages(prev => {
-              const updated = [...prev];
-              updated[messageIndex] = { 
-                ...updated[messageIndex], 
-                content: '⚠️ Scene generation complete but composition not yet available. Individual scenes ready for download.',
-                scenes: data.scenes,
-                status: 'partial'
-              };
-              return updated;
-            });
           }
           return;
         }
         
-        if (++attempts < 300) setTimeout(poll, 2000);  // Poll every 2 seconds, up to 10 minutes
-        else {
-          setMessages(prev => {
-            const updated = [...prev];
-            updated[messageIndex] = { ...updated[messageIndex], content: 'Video generation taking longer than expected. Check back later.', status: 'timeout' };
-            return updated;
-          });
-        }
+        if (++attempts < 300) setTimeout(poll, 2000);
       } catch (e) { 
-        console.error(e);
-        if (++attempts < 300) setTimeout(poll, 5000);  // Retry on error
+        if (++attempts < 300) setTimeout(poll, 5000);
       }
     };
     poll();
@@ -255,13 +315,6 @@ export default function Home() {
           return;
         }
         if (++attempts < 120) setTimeout(poll, 1000);
-        else {
-          setMessages(prev => {
-            const updated = [...prev];
-            updated[messageIndex] = { ...updated[messageIndex], content: 'Taking longer than expected...', status: 'timeout' };
-            return updated;
-          });
-        }
       } catch (e) { console.error(e); }
     };
     poll();
@@ -284,19 +337,26 @@ export default function Home() {
       if (data.status === 'success') {
         setUploadedFile(URL.createObjectURL(file));
         setUploadedFilename(data.filename);
-        setMessages(prev => [...prev, { 
-          role: 'user', 
-          content: 'Uploaded: ' + file.name,
-          image: URL.createObjectURL(file),
-          isUpload: true
-        }]);
+        
+        // If no template selected, just show upload
+        if (!selectedTemplate) {
+          setMessages(prev => [...prev, { 
+            role: 'user', 
+            content: 'Uploaded: ' + file.name,
+            image: URL.createObjectURL(file),
+            isUpload: true
+          }]);
+        }
+        // If template is selected, the useEffect will trigger processing
       } else {
         throw new Error(data.error);
       }
     } catch (error) {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Upload failed: ' + error.message, status: 'error' }]);
     } finally {
-      setLoading(false);
+      if (!selectedTemplate) {
+        setLoading(false);
+      }
     }
   };
 
@@ -307,6 +367,12 @@ export default function Home() {
     if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
       handleFileUpload(file);
     }
+  };
+
+  const selectTemplateWithUpload = (template) => {
+    setSelectedTemplate(template);
+    setShowUploadPrompt(true);
+    fileInputRef.current?.click();
   };
 
   const sendMessage = async () => {
@@ -328,7 +394,6 @@ export default function Home() {
       let res, data;
 
       if (currentFile && isVideoRequest) {
-        // Image to video (AnimateDiff)
         res = await fetch('/api/video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -338,7 +403,6 @@ export default function Home() {
         setUploadedFile(null);
         setUploadedFilename(null);
       } else if (currentFile) {
-        // Image editing workflow
         res = await fetch('/api/edit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -348,7 +412,6 @@ export default function Home() {
         setUploadedFile(null);
         setUploadedFilename(null);
       } else if (isAdRequest) {
-        // Full marketing ad video creation (multi-scene)
         res = await fetch('/api/ad-video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -360,7 +423,6 @@ export default function Home() {
         data = await res.json();
         
         if (data.status === 'generating' && data.sceneJobs) {
-          // Multi-scene generation started
           const idx = messages.length + (currentInput ? 1 : 0);
           setMessages(prev => [...prev, { 
             role: 'assistant', 
@@ -369,14 +431,13 @@ export default function Home() {
             scenes: data.scenes,
             sceneJobs: data.sceneJobs,
             template: data.template,
-            content: `🎬 Creating ${data.duration}s ${data.template} ad...\n\n${data.scenes.map((s, i) => `Scene ${i+1}: ${s.type} (${s.duration}s)`).join('\n')}\n\nGenerating ${data.sceneJobs.length} scenes...`
+            content: `🎬 Creating ${data.duration}s ${data.template} ad...\n\n${data.scenes.map((s, i) => `Scene ${i+1}: ${s.type} (${s.duration}s)`).join('\n')}`
           }]);
           setLoading(false);
           pollForAdVideo(data.sceneJobs, idx);
           return;
         }
       } else if (isVideoRequest) {
-        // Text to video
         res = await fetch('/api/video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -436,6 +497,19 @@ export default function Home() {
         </div>
       )}
 
+      {/* Upload prompt modal */}
+      {showUploadPrompt && selectedTemplate && (
+        <div className="upload-prompt-overlay">
+          <div className="upload-prompt-modal">
+            <span className="upload-prompt-icon">📤</span>
+            <h3>{selectedTemplate.name}</h3>
+            <p>Upload an image to {selectedTemplate.name.toLowerCase()}</p>
+            <button onClick={() => fileInputRef.current?.click()}>Choose File</button>
+            <button className="cancel" onClick={() => { setShowUploadPrompt(false); setSelectedTemplate(null); }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       {/* Marketing Ad Creator Modal */}
       {showAdCreator && (
         <div className="modal-overlay" onClick={() => setShowAdCreator(false)}>
@@ -491,7 +565,7 @@ export default function Home() {
               </div>
 
               <div className="form-section">
-                <h3>📝 Custom Text</h3>
+                <h3>📝 Text</h3>
                 <div className="form-row">
                   <div className="form-group">
                     <label>Headline</label>
@@ -503,7 +577,7 @@ export default function Home() {
                     />
                   </div>
                   <div className="form-group">
-                    <label>CTA Button Text</label>
+                    <label>CTA Button</label>
                     <input 
                       type="text" 
                       placeholder="Shop Now"
@@ -518,37 +592,24 @@ export default function Home() {
                 <h3>🎵 Audio</h3>
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Music Style</label>
+                    <label>Music</label>
                     <select value={adForm.musicStyle} onChange={e => setAdForm({...adForm, musicStyle: e.target.value})}>
                       <option value="upbeat">Upbeat Electronic</option>
-                      <option value="dramatic">Dramatic Cinematic</option>
-                      <option value="chill">Chill Ambient</option>
-                      <option value="corporate">Corporate Inspirational</option>
-                      <option value="hiphop">Hip-Hop Energy</option>
+                      <option value="dramatic">Cinematic</option>
+                      <option value="chill">Ambient</option>
+                      <option value="corporate">Corporate</option>
                       <option value="none">No Music</option>
                     </select>
                   </div>
                   <div className="form-group">
                     <label>Voiceover</label>
                     <select value={adForm.voiceover} onChange={e => setAdForm({...adForm, voiceover: e.target.value})}>
-                      <option value="none">No Voiceover</option>
-                      <option value="tts-male">AI Voice (Male)</option>
-                      <option value="tts-female">AI Voice (Female)</option>
-                      <option value="upload">Upload Audio</option>
+                      <option value="none">None</option>
+                      <option value="tts-male">AI Male</option>
+                      <option value="tts-female">AI Female</option>
                     </select>
                   </div>
                 </div>
-                {adForm.voiceover.startsWith('tts') && (
-                  <div className="form-group full-width">
-                    <label>Voiceover Script</label>
-                    <textarea 
-                      placeholder="Enter the script for AI voiceover..."
-                      value={adForm.voiceoverText}
-                      onChange={e => setAdForm({...adForm, voiceoverText: e.target.value})}
-                      rows={3}
-                    />
-                  </div>
-                )}
               </div>
 
               <div className="form-section">
@@ -571,12 +632,6 @@ export default function Home() {
                     </button>
                   </div>
                 </div>
-                {(adLogo || adProductImages.length > 0) && (
-                  <div className="asset-preview">
-                    {adLogo && <img src={adLogo} alt="Logo" className="preview-thumb" />}
-                    {adProductImages.map((img, i) => <img key={i} src={img} alt={`Product ${i+1}`} className="preview-thumb" />)}
-                  </div>
-                )}
               </div>
             </div>
 
@@ -590,7 +645,7 @@ export default function Home() {
                   setShowAdCreator(false);
                   setMessages(prev => [...prev, { 
                     role: 'user', 
-                    content: `🎬 Create ${adForm.duration} ${adForm.style} style marketing ad for "${adForm.productName}"${adForm.tagline ? ` - "${adForm.tagline}"` : ''}`
+                    content: `🎬 Create ${adForm.duration} ${adForm.style} ad for "${adForm.productName}"${adForm.tagline ? ` - "${adForm.tagline}"` : ''}`
                   }]);
                   setLoading(true);
                   
@@ -599,7 +654,7 @@ export default function Home() {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
-                        prompt: `${adForm.duration} ${adForm.style} style ad for ${adForm.productName}`,
+                        prompt: `${adForm.duration} ${adForm.style} ad for ${adForm.productName}`,
                         style: adForm.style,
                         duration: adForm.duration,
                         product: adForm.productName,
@@ -608,7 +663,6 @@ export default function Home() {
                         ctaText: adForm.ctaText,
                         musicStyle: adForm.musicStyle,
                         voiceover: adForm.voiceover,
-                        voiceoverText: adForm.voiceoverText,
                       })
                     });
                     const data = await res.json();
@@ -619,8 +673,7 @@ export default function Home() {
                         role: 'assistant', 
                         status: 'loading', 
                         operation: 'ad-video',
-                        scenes: data.scenes,
-                        content: `🎬 Creating ${data.duration}s Hollywood-grade ${data.template} ad...\n\n${data.scenes.map((s, i) => `Scene ${i+1}: ${s.type} (${s.duration}s)`).join('\n')}\n\nGenerating ${data.sceneJobs.length} scenes with Remotion...`
+                        content: `🎬 Creating ${data.duration}s ${data.template} ad...`
                       }]);
                       setLoading(false);
                       pollForAdVideo(data.sceneJobs, idx);
@@ -631,7 +684,7 @@ export default function Home() {
                   }
                 }}
               >
-                {loading ? '⏳ Creating...' : '🎬 Create Ad'}
+                {loading ? '⏳' : '🎬 Create'}
               </button>
             </div>
           </div>
@@ -644,14 +697,14 @@ export default function Home() {
           <div className="logo">
             <span className="logo-icon">L</span>
             <div>
-              <span className="logo-title">Lumen Creative Studio</span>
+              <span className="logo-title">Lumen Creative</span>
               <span className="logo-subtitle">Luna Labs</span>
             </div>
           </div>
         </header>
 
-        <button className="new-chat-btn" onClick={() => { setMessages([]); setActiveMode(null); setUploadedFile(null); setUploadedFilename(null); }}>
-          <span>+</span> New Creation
+        <button className="new-chat-btn" onClick={() => { setMessages([]); setActiveMode(null); setUploadedFile(null); setUploadedFilename(null); setSelectedTemplate(null); }}>
+          <span>+</span> New
         </button>
 
         <div className="sidebar-section">
@@ -665,7 +718,7 @@ export default function Home() {
         </div>
 
         <div className="sidebar-footer">
-          <p className="powered-by">Powered by Luna Labs AI</p>
+          <p className="powered-by">Powered by DGX Spark</p>
         </div>
       </aside>
 
@@ -675,7 +728,7 @@ export default function Home() {
           <div className="welcome">
             <div className="welcome-content">
               <h1>Lumen Creative Studio</h1>
-              <p className="welcome-subtitle">Generate images, videos, 3D models, and more. Powered by Luna Labs - AI Supercomputer.</p>
+              <p className="welcome-subtitle">AI-powered creative suite running on DGX Spark supercomputer</p>
 
               <div className="capabilities-grid">
                 {Object.entries(CAPABILITIES).map(([key, cap]) => (
@@ -695,28 +748,38 @@ export default function Home() {
                 ))}
               </div>
 
-              {activeMode && (
+              {activeMode && CAPABILITIES[activeMode] && (
                 <div className="templates-section">
-                  <span className="section-label">{CAPABILITIES[activeMode].title.toUpperCase()} TEMPLATES</span>
+                  <span className="section-label">{CAPABILITIES[activeMode].title.toUpperCase()}</span>
                   <div className="templates-row">
                     {CAPABILITIES[activeMode].templates.map((t, i) => (
-                      <button key={i} className="template-pill" onClick={() => {
-                        if (t.needsUpload) fileInputRef.current?.click();
-                        setInput(t.prompt + ' ');
-                      }}>
-                        {t.needsUpload && '📎 '}{t.name}
+                      <button 
+                        key={i} 
+                        className="template-pill" 
+                        onClick={() => {
+                          if (CAPABILITIES[activeMode].requiresUpload) {
+                            // Templates that require upload first
+                            selectTemplateWithUpload(t);
+                          } else {
+                            setInput(t.prompt + ' ');
+                          }
+                        }}
+                      >
+                        {CAPABILITIES[activeMode].requiresUpload && '📤 '}{t.name}
                       </button>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Upload zone */}
-              <div className="upload-zone" onClick={() => fileInputRef.current?.click()}>
-                <span className="upload-icon">📁</span>
-                <p>Drop files here or click to upload</p>
-                <span className="upload-hint">Images, videos up to 50MB</span>
-              </div>
+              {/* Upload zone - only show for non-upload-required modes */}
+              {(!activeMode || !CAPABILITIES[activeMode]?.requiresUpload) && (
+                <div className="upload-zone" onClick={() => fileInputRef.current?.click()}>
+                  <span className="upload-icon">📁</span>
+                  <p>Drop files here or click to upload</p>
+                  <span className="upload-hint">Images, videos up to 50MB</span>
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -729,10 +792,10 @@ export default function Home() {
                     {m.status === 'loading' && (
                       <div className="loading-state">
                         <div className="spinner"></div>
-                        <span>Processing{m.operation ? ' (' + m.operation + ')' : ''}...</span>
+                        <span>{m.content || `Processing${m.operation ? ' (' + m.operation + ')' : ''}...`}</span>
                       </div>
                     )}
-                    {m.content && <p>{m.content}</p>}
+                    {m.status !== 'loading' && m.content && <p>{m.content}</p>}
                     {m.image && (
                       <div className="image-result">
                         <img src={m.image} alt="Result" />
@@ -748,7 +811,7 @@ export default function Home() {
                       <div className="video-result">
                         <video src={m.video} controls autoPlay loop style={{maxWidth: '100%', borderRadius: '12px'}} />
                         <div className="image-buttons">
-                          <a href={m.video} download="ad-video.mp4" className="primary">Download MP4</a>
+                          <a href={m.video} download="video.mp4" className="primary">Download</a>
                         </div>
                       </div>
                     )}
@@ -761,7 +824,7 @@ export default function Home() {
         )}
 
         {/* Uploaded file preview */}
-        {uploadedFile && (
+        {uploadedFile && !selectedTemplate && (
           <div className="upload-preview">
             <img src={uploadedFile} alt="Upload" />
             <button onClick={() => { setUploadedFile(null); setUploadedFilename(null); }}>✕</button>
@@ -798,14 +861,22 @@ export default function Home() {
         .drag-content { text-align: center; }
         .drag-icon { font-size: 48px; display: block; margin-bottom: 16px; }
         
-        .sidebar { width: 260px; background: #111; border-right: 1px solid #1a1a1a; display: flex; flex-direction: column; }
+        .upload-prompt-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 200; display: flex; align-items: center; justify-content: center; }
+        .upload-prompt-modal { background: #1a1a1a; border: 1px solid #333; border-radius: 16px; padding: 32px; text-align: center; max-width: 400px; }
+        .upload-prompt-icon { font-size: 48px; display: block; margin-bottom: 16px; }
+        .upload-prompt-modal h3 { font-size: 20px; margin-bottom: 8px; color: #22c55e; }
+        .upload-prompt-modal p { color: #888; margin-bottom: 24px; }
+        .upload-prompt-modal button { padding: 12px 32px; background: #22c55e; border: none; border-radius: 8px; color: #000; font-weight: 600; cursor: pointer; margin: 4px; font-size: 14px; }
+        .upload-prompt-modal button.cancel { background: #333; color: #fff; }
+        
+        .sidebar { width: 240px; background: #111; border-right: 1px solid #1a1a1a; display: flex; flex-direction: column; }
         .sidebar-header { padding: 16px; border-bottom: 1px solid #1a1a1a; }
         .logo { display: flex; align-items: center; gap: 12px; }
         .logo-icon { width: 32px; height: 32px; background: #22c55e; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 600; color: #000; }
         .logo-title { display: block; font-weight: 600; font-size: 14px; }
         .logo-subtitle { display: block; font-size: 11px; color: #666; }
         
-        .new-chat-btn { margin: 16px; padding: 12px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; color: #fff; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.15s; }
+        .new-chat-btn { margin: 16px; padding: 12px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; color: #fff; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
         .new-chat-btn:hover { background: #222; border-color: #22c55e; }
         .new-chat-btn span { color: #22c55e; font-size: 18px; }
         
@@ -838,7 +909,7 @@ export default function Home() {
         .template-pill { padding: 8px 16px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 20px; color: #ccc; font-size: 13px; cursor: pointer; transition: all 0.15s; }
         .template-pill:hover { background: #222; border-color: #22c55e; color: #fff; }
         
-        .upload-zone { margin-top: 32px; padding: 40px; border: 2px dashed #333; border-radius: 16px; cursor: pointer; transition: all 0.15s; }
+        .upload-zone { margin-top: 32px; padding: 40px; border: 2px dashed #333; border-radius: 16px; cursor: pointer; }
         .upload-zone:hover { border-color: #22c55e; background: #22c55e08; }
         .upload-icon { font-size: 32px; display: block; margin-bottom: 12px; }
         .upload-zone p { color: #888; margin-bottom: 8px; }
@@ -880,58 +951,35 @@ export default function Home() {
         
         @media (max-width: 768px) { 
           .sidebar { display: none; } 
-          .app { flex-direction: column; }
-          .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-          .welcome { padding: 20px; overflow-y: auto; }
-          .welcome-content h1 { font-size: 24px; margin-bottom: 8px; }
-          .welcome-subtitle { font-size: 14px; margin-bottom: 24px; }
-          .capabilities-grid { grid-template-columns: 1fr; gap: 8px; margin-bottom: 20px; } 
-          .capability-card { padding: 12px; }
-          .cap-icon { font-size: 20px; }
-          .upload-zone { margin-top: 20px; padding: 24px; }
-          .chat-area { padding: 16px; flex: 1; overflow-y: auto; }
-          .input-area { padding: 12px 16px; position: sticky; bottom: 0; background: #0d0d0d; }
-          .input-box { padding: 2px; }
-          .upload-btn, .send-btn { width: 40px; height: 40px; }
-          .input-box input { padding: 10px 8px; font-size: 14px; }
-          .ad-creator-modal { width: 95%; max-height: 90vh; }
-          .form-row { flex-direction: column; }
+          .capabilities-grid { grid-template-columns: 1fr; } 
+          .welcome { padding: 20px; }
+          .chat-area { padding: 16px; }
+          .input-area { padding: 12px 16px; }
         }
         
-        /* Marketing Ad Creator Modal */
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .ad-creator-modal { background: #151515; border: 1px solid #333; border-radius: 16px; width: 100%; max-width: 700px; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column; }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid #222; }
-        .modal-header h2 { margin: 0; font-size: 20px; color: #fff; }
-        .close-btn { background: none; border: none; color: #666; font-size: 28px; cursor: pointer; padding: 0; line-height: 1; }
-        .close-btn:hover { color: #fff; }
-        .modal-body { flex: 1; overflow-y: auto; padding: 24px; }
-        .modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 24px; border-top: 1px solid #222; }
+        .ad-creator-modal { background: #151515; border: 1px solid #333; border-radius: 16px; width: 100%; max-width: 600px; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #222; }
+        .modal-header h2 { margin: 0; font-size: 18px; color: #fff; }
+        .close-btn { background: none; border: none; color: #666; font-size: 24px; cursor: pointer; }
+        .modal-body { flex: 1; overflow-y: auto; padding: 20px; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 20px; border-top: 1px solid #222; }
         
-        .form-row { display: flex; gap: 16px; margin-bottom: 16px; }
+        .form-row { display: flex; gap: 12px; margin-bottom: 12px; }
         .form-group { flex: 1; }
-        .form-group.full-width { flex: none; width: 100%; }
-        .form-group label { display: block; font-size: 13px; color: #888; margin-bottom: 6px; font-weight: 500; }
-        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px 14px; background: #1a1a1a; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 14px; outline: none; font-family: inherit; }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #22c55e; }
-        .form-group input::placeholder, .form-group textarea::placeholder { color: #555; }
-        .form-group select { cursor: pointer; }
-        .form-group textarea { resize: vertical; min-height: 80px; }
+        .form-group label { display: block; font-size: 12px; color: #888; margin-bottom: 4px; }
+        .form-group input, .form-group select { width: 100%; padding: 10px 12px; background: #1a1a1a; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 14px; outline: none; }
+        .form-group input:focus, .form-group select:focus { border-color: #22c55e; }
         
-        .form-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid #222; }
-        .form-section h3 { font-size: 14px; color: #22c55e; margin: 0 0 16px 0; font-weight: 600; }
+        .form-section { margin-top: 16px; padding-top: 16px; border-top: 1px solid #222; }
+        .form-section h3 { font-size: 13px; color: #22c55e; margin: 0 0 12px 0; }
         
-        .upload-asset-btn { width: 100%; padding: 12px; background: #1a1a1a; border: 1px dashed #444; border-radius: 8px; color: #888; cursor: pointer; font-size: 14px; transition: all 0.15s; }
-        .upload-asset-btn:hover { border-color: #22c55e; color: #fff; background: #222; }
+        .upload-asset-btn { width: 100%; padding: 10px; background: #1a1a1a; border: 1px dashed #444; border-radius: 8px; color: #888; cursor: pointer; font-size: 13px; }
+        .upload-asset-btn:hover { border-color: #22c55e; color: #fff; }
         
-        .asset-preview { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-        .preview-thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid #333; }
-        
-        .cancel-btn { padding: 12px 24px; background: #333; border: none; border-radius: 8px; color: #fff; cursor: pointer; font-size: 14px; }
-        .cancel-btn:hover { background: #444; }
-        .create-btn { padding: 12px 32px; background: #22c55e; border: none; border-radius: 8px; color: #000; font-weight: 600; cursor: pointer; font-size: 14px; }
-        .create-btn:hover { background: #1ea34b; }
-        .create-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .cancel-btn { padding: 10px 20px; background: #333; border: none; border-radius: 8px; color: #fff; cursor: pointer; }
+        .create-btn { padding: 10px 24px; background: #22c55e; border: none; border-radius: 8px; color: #000; font-weight: 600; cursor: pointer; }
+        .create-btn:disabled { opacity: 0.5; }
       `}</style>
     </div>
   );
