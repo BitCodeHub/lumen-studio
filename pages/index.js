@@ -306,17 +306,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Mobile Header */}
-      <header className="mobile-header">
-        <div className="logo">
-          <span className="logo-icon">L</span>
-          <div>
-            <span className="logo-title">Lumen Creative Studio</span>
-            <span className="logo-subtitle">Luna Labs</span>
-          </div>
-        </div>
-      </header>
-
       {/* Sidebar */}
       <aside className="sidebar">
         <header className="sidebar-header">
@@ -543,11 +532,8 @@ export default function Home() {
         
         @media (max-width: 900px) { .capabilities-grid { grid-template-columns: repeat(2, 1fr); } }
         
-        .mobile-header { display: none; }
-        
         @media (max-width: 768px) { 
           .sidebar { display: none; } 
-          .mobile-header { display: flex; align-items: center; padding: 12px 16px; background: #111; border-bottom: 1px solid #1a1a1a; position: sticky; top: 0; z-index: 50; }
           .app { flex-direction: column; }
           .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
           .welcome { padding: 20px; overflow-y: auto; }
