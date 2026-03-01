@@ -1,125 +1,156 @@
 const COMFYUI_URL = process.env.COMFYUI_URL || 'http://localhost:8188';
 const AUTH = Buffer.from(process.env.COMFYUI_AUTH || 'lumen:studio2026').toString('base64');
 
-// Detect if prompt needs photorealistic treatment
-function isPhotorealistic(prompt) {
-  const keywords = ['photo', 'portrait', 'person', 'woman', 'man', 'girl', 'boy', 
-    'fashion', 'model', 'realistic', 'photography', 'cinematic', 'face', 
-    'human', 'people', 'professional', 'studio', 'headshot', 'influencer'];
+// Photography category detection
+function detectCategory(prompt) {
   const lower = prompt.toLowerCase();
-  return keywords.some(k => lower.includes(k));
-}
-
-// Detect food photography
-function isFoodPhoto(prompt) {
-  const keywords = ['food', 'dish', 'meal', 'bowl', 'plate', 'pho', 'ramen', 
+  
+  // Food photography
+  const foodKeywords = ['food', 'dish', 'meal', 'bowl', 'plate', 'pho', 'ramen', 
     'sushi', 'pasta', 'pizza', 'burger', 'steak', 'salad', 'soup', 'noodle',
-    'bun bo', 'banh mi', 'cuisine', 'restaurant', 'cooking', 'recipe', 'delicious'];
-  const lower = prompt.toLowerCase();
-  return keywords.some(k => lower.includes(k));
+    'bun bo', 'banh mi', 'cuisine', 'restaurant', 'cooking', 'recipe', 'delicious',
+    'dessert', 'cake', 'coffee', 'drink', 'cocktail', 'wine'];
+  if (foodKeywords.some(k => lower.includes(k))) return 'food';
+  
+  // Portrait/People photography
+  const portraitKeywords = ['portrait', 'person', 'woman', 'man', 'girl', 'boy', 
+    'fashion', 'model', 'face', 'human', 'people', 'headshot', 'influencer',
+    'selfie', 'couple', 'family', 'child', 'baby', 'elderly', 'professional'];
+  if (portraitKeywords.some(k => lower.includes(k))) return 'portrait';
+  
+  // Product photography
+  const productKeywords = ['product', 'bottle', 'package', 'box', 'shoe', 'watch',
+    'jewelry', 'perfume', 'cosmetic', 'makeup', 'handbag', 'electronics', 'phone',
+    'headphones', 'sneaker', 'clothing', 'apparel', 'accessory', 'luxury'];
+  if (productKeywords.some(k => lower.includes(k))) return 'product';
+  
+  // Landscape/Nature photography
+  const landscapeKeywords = ['landscape', 'mountain', 'ocean', 'beach', 'forest',
+    'sunset', 'sunrise', 'nature', 'sky', 'clouds', 'river', 'lake', 'waterfall',
+    'desert', 'valley', 'field', 'garden', 'park', 'outdoor'];
+  if (landscapeKeywords.some(k => lower.includes(k))) return 'landscape';
+  
+  // Architecture/Interior photography
+  const archKeywords = ['architecture', 'building', 'interior', 'room', 'house',
+    'apartment', 'office', 'kitchen', 'bathroom', 'bedroom', 'living room',
+    'modern', 'minimalist', 'luxury home', 'real estate', 'hotel', 'lobby'];
+  if (archKeywords.some(k => lower.includes(k))) return 'architecture';
+  
+  // Car/Vehicle photography
+  const carKeywords = ['car', 'vehicle', 'automobile', 'sports car', 'luxury car',
+    'motorcycle', 'bike', 'truck', 'suv', 'sedan', 'coupe', 'ferrari', 'porsche',
+    'lamborghini', 'bmw', 'mercedes', 'tesla'];
+  if (carKeywords.some(k => lower.includes(k))) return 'car';
+  
+  // Default to general photography
+  return 'general';
 }
 
-// Juggernaut XL workflow for photorealistic images (OpenAI quality)
-function buildPhotorealisticWorkflow(prompt) {
-  const enhancedPrompt = `${prompt}, masterpiece, ultra high resolution, photorealistic, RAW photo, 8k uhd, dslr, professional photography, cinematic lighting, 85mm lens, shallow depth of field, natural skin texture, detailed skin pores, studio lighting, sharp focus`;
-  const negativePrompt = `ugly, blurry, low quality, deformed, disfigured, bad anatomy, bad hands, bad fingers, extra fingers, missing fingers, extra limbs, mutation, watermark, text, signature, jpeg artifacts, poorly drawn, cartoon, anime, illustration, painting, drawing, cgi, 3d render`;
+// Universal photorealistic negative prompt
+const PHOTO_NEGATIVE = `ugly, blurry, low quality, deformed, disfigured, bad anatomy, bad proportions, watermark, text, signature, jpeg artifacts, poorly drawn, cartoon, anime, illustration, painting, drawing, cgi, 3d render, artificial, fake, plastic, oversaturated, amateur, grainy, noisy`;
+
+// Portrait/People workflow (Juggernaut XL - best for humans)
+function buildPortraitWorkflow(prompt) {
+  const enhanced = `${prompt}, masterpiece, ultra high resolution, photorealistic, RAW photo, 8k uhd, shot on Sony A7R IV, 85mm f/1.4 GM lens, professional photography, cinematic lighting, shallow depth of field, natural skin texture, detailed skin pores, catch lights in eyes, studio quality, sharp focus, professional retouching`;
   
   return {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1024, "height": 1344, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
-    "3": { "inputs": { "text": enhancedPrompt, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "4": { "inputs": { "text": negativePrompt, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "5": { "inputs": { 
-      "seed": Math.floor(Math.random() * 1e9), 
-      "steps": 35, 
-      "cfg": 7, 
-      "sampler_name": "dpmpp_2m_sde", 
-      "scheduler": "karras", 
-      "denoise": 1, 
-      "model": ["1", 0], 
-      "positive": ["3", 0], 
-      "negative": ["4", 0], 
-      "latent_image": ["2", 0] 
-    }, "class_type": "KSampler" },
+    "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", bad hands, bad fingers, extra fingers, missing fingers, extra limbs, mutation", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 40, "cfg": 6, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
-    "7": { "inputs": { "filename_prefix": "photo", "images": ["6", 0] }, "class_type": "SaveImage" }
+    "7": { "inputs": { "filename_prefix": "portrait", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
 }
 
-// FLUX.1-dev workflow for general high-quality images
-function buildFLUXWorkflow(prompt) {
-  const enhancedPrompt = `${prompt}, highly detailed, professional quality, sharp focus, 8k`;
-  
-  return {
-    "1": { "inputs": { "ckpt_name": "flux1-dev.safetensors" }, "class_type": "CheckpointLoaderSimple" },
-    "2": { "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
-    "3": { "inputs": { "text": enhancedPrompt, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "4": { "inputs": { "text": "ugly, blurry, low quality, deformed, watermark", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "5": { "inputs": { 
-      "seed": Math.floor(Math.random() * 1e9), 
-      "steps": 28, 
-      "cfg": 3.5, 
-      "sampler_name": "euler", 
-      "scheduler": "simple", 
-      "denoise": 1, 
-      "model": ["1", 0], 
-      "positive": ["3", 0], 
-      "negative": ["4", 0], 
-      "latent_image": ["2", 0] 
-    }, "class_type": "KSampler" },
-    "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
-    "7": { "inputs": { "filename_prefix": "flux", "images": ["6", 0] }, "class_type": "SaveImage" }
-  };
-}
-
-// Food Photography workflow - photorealistic restaurant quality
+// Food Photography workflow
 function buildFoodWorkflow(prompt) {
-  const enhancedPrompt = `${prompt}, professional food photography, shot on Canon EOS R5, 100mm macro lens, f/2.8 aperture, natural window lighting, soft shadows, steam rising, wooden table background, shallow depth of field, food magazine cover quality, michelin star presentation, appetizing, mouth-watering, high-end restaurant, RAW photo, 8k uhd, photorealistic, natural colors, realistic textures`;
-  const negativePrompt = `artificial, plastic, fake, oversaturated, neon colors, cartoon, illustration, drawing, painting, cgi, 3d render, blurry, grainy, low quality, watermark, text, ugly, deformed, unrealistic lighting, flat lighting, harsh shadows, amateur`;
+  const enhanced = `${prompt}, professional food photography, shot on Canon EOS R5, 100mm macro lens, f/2.8 aperture, natural window lighting, soft diffused shadows, steam rising naturally, shallow depth of field, food magazine cover quality, michelin star presentation, appetizing, mouth-watering, high-end restaurant styling, RAW photo, 8k uhd, photorealistic, natural colors, realistic textures, editorial quality`;
   
   return {
-    "1": { "inputs": { "ckpt_name": "flux1-dev.safetensors" }, "class_type": "CheckpointLoaderSimple" },
+    "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
-    "3": { "inputs": { "text": enhancedPrompt, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "4": { "inputs": { "text": negativePrompt, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "5": { "inputs": { 
-      "seed": Math.floor(Math.random() * 1e9), 
-      "steps": 30, 
-      "cfg": 4, 
-      "sampler_name": "dpmpp_2m", 
-      "scheduler": "karras", 
-      "denoise": 1, 
-      "model": ["1", 0], 
-      "positive": ["3", 0], 
-      "negative": ["4", 0], 
-      "latent_image": ["2", 0] 
-    }, "class_type": "KSampler" },
+    "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", unappetizing, raw meat, rotten, spoiled, artificial colors, neon lighting", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 35, "cfg": 5, "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "food", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
 }
 
-// SDXL workflow for fast general images
-function buildSDXLWorkflow(prompt) {
+// Product Photography workflow
+function buildProductWorkflow(prompt) {
+  const enhanced = `${prompt}, professional product photography, shot on Phase One IQ4, 120mm macro lens, f/8 aperture, studio lighting setup, softbox lighting, clean white background, commercial advertising quality, sharp focus throughout, product catalog style, RAW photo, 8k uhd, photorealistic, perfect reflections, luxury presentation, high-end advertising`;
+  
   return {
-    "1": { "inputs": { "ckpt_name": "sd_xl_base_1.0.safetensors" }, "class_type": "CheckpointLoaderSimple" },
+    "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
-    "3": { "inputs": { "text": prompt + ", high quality, detailed", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "4": { "inputs": { "text": "ugly, blurry, low quality, deformed", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "5": { "inputs": { 
-      "seed": Math.floor(Math.random() * 1e9), 
-      "steps": 25, 
-      "cfg": 7, 
-      "sampler_name": "euler", 
-      "scheduler": "normal", 
-      "denoise": 1, 
-      "model": ["1", 0], 
-      "positive": ["3", 0], 
-      "negative": ["4", 0], 
-      "latent_image": ["2", 0] 
-    }, "class_type": "KSampler" },
+    "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", dirty, damaged, scratched, fingerprints, dust", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 35, "cfg": 6, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
-    "7": { "inputs": { "filename_prefix": "sdxl", "images": ["6", 0] }, "class_type": "SaveImage" }
+    "7": { "inputs": { "filename_prefix": "product", "images": ["6", 0] }, "class_type": "SaveImage" }
+  };
+}
+
+// Landscape Photography workflow
+function buildLandscapeWorkflow(prompt) {
+  const enhanced = `${prompt}, professional landscape photography, shot on Nikon Z9, 24-70mm f/2.8 lens, golden hour lighting, dramatic sky, National Geographic quality, ultra wide dynamic range, RAW photo, 8k uhd, photorealistic, stunning composition, rule of thirds, leading lines, epic vista, award-winning nature photography`;
+  
+  return {
+    "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
+    "2": { "inputs": { "width": 1344, "height": 768, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
+    "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", flat lighting, boring composition, hdr overprocessed", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 35, "cfg": 6, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
+    "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
+    "7": { "inputs": { "filename_prefix": "landscape", "images": ["6", 0] }, "class_type": "SaveImage" }
+  };
+}
+
+// Architecture/Interior Photography workflow
+function buildArchitectureWorkflow(prompt) {
+  const enhanced = `${prompt}, professional architectural photography, shot on Canon 5DS R, 24mm tilt-shift lens, perfectly straight verticals, interior design magazine quality, natural daylight through windows, ambient lighting, clean modern aesthetic, RAW photo, 8k uhd, photorealistic, Architectural Digest style, luxury real estate photography`;
+  
+  return {
+    "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
+    "2": { "inputs": { "width": 1344, "height": 896, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
+    "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", tilted, crooked, distorted perspective, cluttered, messy", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 35, "cfg": 6, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
+    "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
+    "7": { "inputs": { "filename_prefix": "architecture", "images": ["6", 0] }, "class_type": "SaveImage" }
+  };
+}
+
+// Car/Automotive Photography workflow
+function buildCarWorkflow(prompt) {
+  const enhanced = `${prompt}, professional automotive photography, shot on Hasselblad H6D, dramatic studio lighting, reflections on bodywork, showroom quality, car magazine cover, RAW photo, 8k uhd, photorealistic, perfect paint finish, dynamic angle, motion blur background optional, luxury automotive advertising`;
+  
+  return {
+    "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
+    "2": { "inputs": { "width": 1344, "height": 896, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
+    "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", damaged, dented, scratched, dirty, cheap car", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 35, "cfg": 6, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
+    "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
+    "7": { "inputs": { "filename_prefix": "car", "images": ["6", 0] }, "class_type": "SaveImage" }
+  };
+}
+
+// General Photography workflow (high quality default)
+function buildGeneralWorkflow(prompt) {
+  const enhanced = `${prompt}, professional photography, shot on high-end DSLR camera, perfect lighting, RAW photo, 8k uhd, photorealistic, sharp focus, high dynamic range, magazine quality, award-winning photography, natural colors, realistic textures`;
+  
+  return {
+    "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
+    "2": { "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
+    "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "4": { "inputs": { "text": PHOTO_NEGATIVE, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 35, "cfg": 6, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
+    "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
+    "7": { "inputs": { "filename_prefix": "photo", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
 }
 
@@ -137,31 +168,75 @@ export default async function handler(req, res) {
   try {
     let workflow;
     let selectedModel;
+    let category;
 
-    // Model selection logic
-    if (model === 'juggernaut' || model === 'photo' || model === 'photorealistic') {
-      workflow = buildPhotorealisticWorkflow(prompt);
-      selectedModel = 'Juggernaut XL v9';
-    } else if (model === 'food') {
-      workflow = buildFoodWorkflow(prompt);
-      selectedModel = 'FLUX.1-dev (Food Photography)';
-    } else if (model === 'flux' || model === 'flux-dev') {
-      workflow = buildFLUXWorkflow(prompt);
-      selectedModel = 'FLUX.1-dev';
-    } else if (model === 'sdxl' || model === 'fast') {
-      workflow = buildSDXLWorkflow(prompt);
-      selectedModel = 'SDXL Base';
+    // Manual model override
+    if (model) {
+      switch(model) {
+        case 'portrait':
+        case 'person':
+          workflow = buildPortraitWorkflow(prompt);
+          selectedModel = 'Juggernaut XL (Portrait)';
+          break;
+        case 'food':
+          workflow = buildFoodWorkflow(prompt);
+          selectedModel = 'Juggernaut XL (Food)';
+          break;
+        case 'product':
+          workflow = buildProductWorkflow(prompt);
+          selectedModel = 'Juggernaut XL (Product)';
+          break;
+        case 'landscape':
+        case 'nature':
+          workflow = buildLandscapeWorkflow(prompt);
+          selectedModel = 'Juggernaut XL (Landscape)';
+          break;
+        case 'architecture':
+        case 'interior':
+          workflow = buildArchitectureWorkflow(prompt);
+          selectedModel = 'Juggernaut XL (Architecture)';
+          break;
+        case 'car':
+        case 'automotive':
+          workflow = buildCarWorkflow(prompt);
+          selectedModel = 'Juggernaut XL (Automotive)';
+          break;
+        default:
+          workflow = buildGeneralWorkflow(prompt);
+          selectedModel = 'Juggernaut XL (Photo)';
+      }
     } else {
-      // Auto-detect based on prompt content
-      if (isFoodPhoto(prompt)) {
-        workflow = buildFoodWorkflow(prompt);
-        selectedModel = 'FLUX.1-dev (Food Photography)';
-      } else if (isPhotorealistic(prompt)) {
-        workflow = buildPhotorealisticWorkflow(prompt);
-        selectedModel = 'Juggernaut XL v9';
-      } else {
-        workflow = buildFLUXWorkflow(prompt);
-        selectedModel = 'FLUX.1-dev';
+      // Auto-detect category from prompt
+      category = detectCategory(prompt);
+      
+      switch(category) {
+        case 'portrait':
+          workflow = buildPortraitWorkflow(prompt);
+          selectedModel = 'Juggernaut XL (Portrait)';
+          break;
+        case 'food':
+          workflow = buildFoodWorkflow(prompt);
+          selectedModel = 'Juggernaut XL (Food)';
+          break;
+        case 'product':
+          workflow = buildProductWorkflow(prompt);
+          selectedModel = 'Juggernaut XL (Product)';
+          break;
+        case 'landscape':
+          workflow = buildLandscapeWorkflow(prompt);
+          selectedModel = 'Juggernaut XL (Landscape)';
+          break;
+        case 'architecture':
+          workflow = buildArchitectureWorkflow(prompt);
+          selectedModel = 'Juggernaut XL (Architecture)';
+          break;
+        case 'car':
+          workflow = buildCarWorkflow(prompt);
+          selectedModel = 'Juggernaut XL (Automotive)';
+          break;
+        default:
+          workflow = buildGeneralWorkflow(prompt);
+          selectedModel = 'Juggernaut XL (Photo)';
       }
     }
     
@@ -185,7 +260,8 @@ export default async function handler(req, res) {
       status: 'generating',
       prompt_id: data.prompt_id,
       model: selectedModel,
-      message: `Creating your image with ${selectedModel}...`
+      category: category || 'manual',
+      message: `Creating photorealistic image with ${selectedModel}...`
     });
 
   } catch (error) {
