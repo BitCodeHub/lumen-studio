@@ -1,5 +1,5 @@
 // Image editing endpoint - various workflows
-const COMFYUI_URL = process.env.COMFYUI_URL || 'https://spark-comfyui.ngrok.app';
+const COMFYUI_URL = process.env.COMFYUI_URL || 'http://localhost:8188';
 const AUTH = Buffer.from(process.env.COMFYUI_AUTH || 'lumen:studio2026').toString('base64');
 
 // Workflow builders for different operations
