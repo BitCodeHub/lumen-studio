@@ -119,6 +119,7 @@ export default function Home() {
   const [dragOver, setDragOver] = useState(false);
   const [showAdCreator, setShowAdCreator] = useState(false);
   const [showUploadPrompt, setShowUploadPrompt] = useState(false); // New: show upload prompt
+  const [uploadPromptText, setUploadPromptText] = useState(''); // User's custom prompt for upload
   const [adForm, setAdForm] = useState({
     productName: '',
     tagline: '',
@@ -141,27 +142,31 @@ export default function Home() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Auto-process when file is uploaded with a selected template
-  useEffect(() => {
-    if (uploadedFilename && selectedTemplate && !loading) {
-      processWithTemplate();
-    }
-  }, [uploadedFilename, selectedTemplate]);
+  // Don't auto-process - let user add prompt first
+  // The modal will show after upload, user can add description and click process
 
   const processWithTemplate = async () => {
     if (!uploadedFilename || !selectedTemplate) return;
     
     const template = selectedTemplate;
     const filename = uploadedFilename;
+    const customPrompt = uploadPromptText.trim();
+    const imagePreview = uploadedFile;
+    
+    // Build the full prompt
+    const fullPrompt = customPrompt 
+      ? `${template.prompt} - ${customPrompt}` 
+      : template.prompt;
     
     // Clear states
     setSelectedTemplate(null);
     setShowUploadPrompt(false);
+    setUploadPromptText('');
     
     setMessages(prev => [...prev, { 
       role: 'user', 
-      content: template.name,
-      image: uploadedFile
+      content: customPrompt ? `${template.name}: ${customPrompt}` : template.name,
+      image: imagePreview
     }]);
     
     setLoading(true);
@@ -176,7 +181,7 @@ export default function Home() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             filename: filename, 
-            prompt: template.prompt, 
+            prompt: fullPrompt, 
             videoType: 'image_to_video',
             action: template.action
           })
@@ -188,7 +193,7 @@ export default function Home() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             filename: filename, 
-            prompt: template.prompt,
+            prompt: fullPrompt,
             action: template.action
           })
         });
@@ -497,15 +502,44 @@ export default function Home() {
         </div>
       )}
 
-      {/* Upload prompt modal */}
+      {/* Upload prompt modal with text input */}
       {showUploadPrompt && selectedTemplate && (
         <div className="upload-prompt-overlay">
           <div className="upload-prompt-modal">
+            <button className="modal-close" onClick={() => { setShowUploadPrompt(false); setSelectedTemplate(null); setUploadPromptText(''); }}>×</button>
             <span className="upload-prompt-icon">📤</span>
             <h3>{selectedTemplate.name}</h3>
-            <p>Upload an image to {selectedTemplate.name.toLowerCase()}</p>
-            <button onClick={() => fileInputRef.current?.click()}>Choose File</button>
-            <button className="cancel" onClick={() => { setShowUploadPrompt(false); setSelectedTemplate(null); }}>Cancel</button>
+            
+            {!uploadedFile ? (
+              <>
+                <p>Upload an image to get started</p>
+                <div className="upload-drop-area" onClick={() => fileInputRef.current?.click()}>
+                  <span>📁</span>
+                  <p>Click or drag to upload</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="upload-preview-modal">
+                  <img src={uploadedFile} alt="Preview" />
+                  <button className="remove-preview" onClick={() => { setUploadedFile(null); setUploadedFilename(null); }}>✕</button>
+                </div>
+                <div className="prompt-input-area">
+                  <input 
+                    type="text"
+                    placeholder={`Describe what you want (optional)...`}
+                    value={uploadPromptText}
+                    onChange={e => setUploadPromptText(e.target.value)}
+                    onKeyPress={e => e.key === 'Enter' && uploadedFilename && processWithTemplate()}
+                  />
+                </div>
+                <button className="process-btn" onClick={processWithTemplate} disabled={loading}>
+                  {loading ? '⏳ Processing...' : `🚀 ${selectedTemplate.name}`}
+                </button>
+              </>
+            )}
+            
+            <button className="cancel" onClick={() => { setShowUploadPrompt(false); setSelectedTemplate(null); setUploadedFile(null); setUploadedFilename(null); setUploadPromptText(''); }}>Cancel</button>
           </div>
         </div>
       )}
@@ -861,13 +895,29 @@ export default function Home() {
         .drag-content { text-align: center; }
         .drag-icon { font-size: 48px; display: block; margin-bottom: 16px; }
         
-        .upload-prompt-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 200; display: flex; align-items: center; justify-content: center; }
-        .upload-prompt-modal { background: #1a1a1a; border: 1px solid #333; border-radius: 16px; padding: 32px; text-align: center; max-width: 400px; }
-        .upload-prompt-icon { font-size: 48px; display: block; margin-bottom: 16px; }
-        .upload-prompt-modal h3 { font-size: 20px; margin-bottom: 8px; color: #22c55e; }
-        .upload-prompt-modal p { color: #888; margin-bottom: 24px; }
-        .upload-prompt-modal button { padding: 12px 32px; background: #22c55e; border: none; border-radius: 8px; color: #000; font-weight: 600; cursor: pointer; margin: 4px; font-size: 14px; }
-        .upload-prompt-modal button.cancel { background: #333; color: #fff; }
+        .upload-prompt-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .upload-prompt-modal { background: #1a1a1a; border: 1px solid #333; border-radius: 16px; padding: 24px; text-align: center; max-width: 420px; width: 100%; position: relative; }
+        .modal-close { position: absolute; top: 12px; right: 12px; background: none; border: none; color: #666; font-size: 24px; cursor: pointer; padding: 0; }
+        .modal-close:hover { color: #fff; }
+        .upload-prompt-icon { font-size: 40px; display: block; margin-bottom: 12px; }
+        .upload-prompt-modal h3 { font-size: 18px; margin-bottom: 16px; color: #22c55e; }
+        .upload-prompt-modal > p { color: #888; margin-bottom: 16px; font-size: 14px; }
+        .upload-drop-area { border: 2px dashed #333; border-radius: 12px; padding: 32px; cursor: pointer; margin-bottom: 16px; transition: all 0.15s; }
+        .upload-drop-area:hover { border-color: #22c55e; background: #22c55e10; }
+        .upload-drop-area span { font-size: 32px; display: block; margin-bottom: 8px; }
+        .upload-drop-area p { color: #666; margin: 0; font-size: 13px; }
+        .upload-preview-modal { margin-bottom: 16px; position: relative; display: inline-block; }
+        .upload-preview-modal img { max-width: 100%; max-height: 200px; border-radius: 12px; border: 1px solid #333; }
+        .remove-preview { position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; background: #ef4444; border: none; border-radius: 50%; color: #fff; cursor: pointer; font-size: 14px; }
+        .prompt-input-area { margin-bottom: 16px; }
+        .prompt-input-area input { width: 100%; padding: 14px 16px; background: #111; border: 1px solid #333; border-radius: 10px; color: #fff; font-size: 14px; outline: none; }
+        .prompt-input-area input:focus { border-color: #22c55e; }
+        .prompt-input-area input::placeholder { color: #555; }
+        .process-btn { width: 100%; padding: 14px 24px; background: #22c55e; border: none; border-radius: 10px; color: #000; font-weight: 600; cursor: pointer; font-size: 15px; margin-bottom: 12px; }
+        .process-btn:hover { background: #1ea34b; }
+        .process-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .upload-prompt-modal button.cancel { padding: 10px 24px; background: transparent; border: 1px solid #333; border-radius: 8px; color: #888; cursor: pointer; font-size: 13px; }
+        .upload-prompt-modal button.cancel:hover { border-color: #555; color: #fff; }
         
         .sidebar { width: 240px; background: #111; border-right: 1px solid #1a1a1a; display: flex; flex-direction: column; }
         .sidebar-header { padding: 16px; border-bottom: 1px solid #1a1a1a; }
