@@ -130,6 +130,87 @@ export default function Home() {
     return adKeywords.some(kw => lower.includes(kw));
   };
 
+  // Poll for multi-scene ad video completion
+  const pollForAdVideo = async (sceneJobs, messageIndex) => {
+    let attempts = 0;
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/ad-compose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sceneJobs, checkOnly: true })
+        });
+        const data = await res.json();
+        
+        // Update progress
+        setMessages(prev => {
+          const updated = [...prev];
+          const msg = updated[messageIndex];
+          updated[messageIndex] = { 
+            ...msg, 
+            content: `🎬 Generating scenes: ${data.complete}/${data.total} complete${data.processing > 0 ? `\n⏳ ${data.processing} processing...` : ''}${data.failed > 0 ? `\n❌ ${data.failed} failed` : ''}`
+          };
+          return updated;
+        });
+        
+        if (data.allComplete) {
+          // All scenes ready - compose video
+          setMessages(prev => {
+            const updated = [...prev];
+            updated[messageIndex] = { ...updated[messageIndex], content: '🎬 All scenes ready! Composing final video...' };
+            return updated;
+          });
+          
+          // Request composition
+          const composeRes = await fetch('/api/ad-compose', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sceneJobs, compose: true })
+          });
+          const composeData = await composeRes.json();
+          
+          if (composeData.video) {
+            setMessages(prev => {
+              const updated = [...prev];
+              updated[messageIndex] = { 
+                ...updated[messageIndex], 
+                content: null,
+                video: 'data:video/mp4;base64,' + composeData.video.base64,
+                status: 'complete'
+              };
+              return updated;
+            });
+          } else {
+            setMessages(prev => {
+              const updated = [...prev];
+              updated[messageIndex] = { 
+                ...updated[messageIndex], 
+                content: '⚠️ Scene generation complete but composition not yet available. Individual scenes ready for download.',
+                scenes: data.scenes,
+                status: 'partial'
+              };
+              return updated;
+            });
+          }
+          return;
+        }
+        
+        if (++attempts < 300) setTimeout(poll, 2000);  // Poll every 2 seconds, up to 10 minutes
+        else {
+          setMessages(prev => {
+            const updated = [...prev];
+            updated[messageIndex] = { ...updated[messageIndex], content: 'Video generation taking longer than expected. Check back later.', status: 'timeout' };
+            return updated;
+          });
+        }
+      } catch (e) { 
+        console.error(e);
+        if (++attempts < 300) setTimeout(poll, 5000);  // Retry on error
+      }
+    };
+    poll();
+  };
+
   const pollForImage = async (promptId, messageIndex) => {
     let attempts = 0;
     const poll = async () => {
@@ -238,13 +319,33 @@ export default function Home() {
         setUploadedFile(null);
         setUploadedFilename(null);
       } else if (isAdRequest) {
-        // Marketing ad creation
-        res = await fetch('/api/ad', {
+        // Full marketing ad video creation (multi-scene)
+        res = await fetch('/api/ad-video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: currentInput })
+          body: JSON.stringify({ 
+            prompt: currentInput,
+            duration: currentInput.match(/(\d+)\s*s/)?.[0] || '30s'
+          })
         });
         data = await res.json();
+        
+        if (data.status === 'generating' && data.sceneJobs) {
+          // Multi-scene generation started
+          const idx = messages.length + (currentInput ? 1 : 0);
+          setMessages(prev => [...prev, { 
+            role: 'assistant', 
+            status: 'loading', 
+            operation: 'ad-video',
+            scenes: data.scenes,
+            sceneJobs: data.sceneJobs,
+            template: data.template,
+            content: `🎬 Creating ${data.duration}s ${data.template} ad...\n\n${data.scenes.map((s, i) => `Scene ${i+1}: ${s.type} (${s.duration}s)`).join('\n')}\n\nGenerating ${data.sceneJobs.length} scenes...`
+          }]);
+          setLoading(false);
+          pollForAdVideo(data.sceneJobs, idx);
+          return;
+        }
       } else if (isVideoRequest) {
         // Text to video
         res = await fetch('/api/video', {
@@ -404,6 +505,14 @@ export default function Home() {
                             <a href={m.image} download className="primary">Download</a>
                           </div>
                         )}
+                      </div>
+                    )}
+                    {m.video && (
+                      <div className="video-result">
+                        <video src={m.video} controls autoPlay loop style={{maxWidth: '100%', borderRadius: '12px'}} />
+                        <div className="image-buttons">
+                          <a href={m.video} download="ad-video.mp4" className="primary">Download MP4</a>
+                        </div>
                       </div>
                     )}
                   </div>
