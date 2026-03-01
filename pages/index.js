@@ -113,6 +113,7 @@ export default function Home() {
   const [activeMode, setActiveMode] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadedFilename, setUploadedFilename] = useState(null);
+  const [lastGeneratedImage, setLastGeneratedImage] = useState(null); // Track last generated image for edits
   const [dragOver, setDragOver] = useState(false);
   const [showAdCreator, setShowAdCreator] = useState(false);
   const [adForm, setAdForm] = useState({
@@ -157,6 +158,13 @@ export default function Home() {
     const lower = text.toLowerCase();
     const adKeywords = ['ad for', 'commercial for', 'marketing', 'product ad', 'brand video', 'promo video', 'advertisement', 'apple style', 'nike style', 'startup demo', 'product demo'];
     return adKeywords.some(kw => lower.includes(kw));
+  };
+
+  // Detect if user wants to edit the previous image
+  const detectEditRequest = (text) => {
+    const lower = text.toLowerCase();
+    const editKeywords = ['add ', 'put ', 'place ', 'insert ', 'remove ', 'delete ', 'change ', 'make it', 'make the', 'transform ', 'modify ', 'edit ', 'fix ', 'adjust ', 'replace ', 'swap ', 'in the bowl', 'in the image', 'to the image', 'on the', 'more ', 'less ', 'with '];
+    return editKeywords.some(kw => lower.includes(kw));
   };
 
   // Poll for multi-scene ad video completion
@@ -247,9 +255,13 @@ export default function Home() {
         const res = await fetch('/api/status?prompt_id=' + promptId);
         const data = await res.json();
         if (data.status === 'complete' && data.image_url) {
+          // Save the filename for future edit operations
+          if (data.filename) {
+            setLastGeneratedImage(data.filename);
+          }
           setMessages(prev => {
             const updated = [...prev];
-            updated[messageIndex] = { ...updated[messageIndex], content: null, image: data.image_url, status: 'complete' };
+            updated[messageIndex] = { ...updated[messageIndex], content: null, image: data.image_url, filename: data.filename, status: 'complete' };
             return updated;
           });
           return;
@@ -327,22 +339,25 @@ export default function Home() {
       const isAdRequest = detectAdRequest(currentInput);
       let res, data;
 
-      if (currentFile && isVideoRequest) {
+      // Determine which image to edit (uploaded or last generated)
+      const imageToEdit = currentFile || (detectEditRequest(currentInput) ? lastGeneratedImage : null);
+      
+      if (imageToEdit && isVideoRequest) {
         // Image to video (AnimateDiff)
         res = await fetch('/api/video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: currentFile, prompt: currentInput, videoType: 'image_to_video' })
+          body: JSON.stringify({ filename: imageToEdit, prompt: currentInput, videoType: 'image_to_video' })
         });
         data = await res.json();
         setUploadedFile(null);
         setUploadedFilename(null);
-      } else if (currentFile) {
-        // Image editing workflow
+      } else if (imageToEdit) {
+        // Image editing workflow (either uploaded image or editing last generated)
         res = await fetch('/api/edit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: currentFile, prompt: currentInput })
+          body: JSON.stringify({ filename: imageToEdit, prompt: currentInput })
         });
         data = await res.json();
         setUploadedFile(null);

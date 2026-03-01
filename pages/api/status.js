@@ -1,5 +1,5 @@
 // Poll for generation status and get the image when ready
-const COMFYUI_URL = process.env.COMFYUI_URL || 'https://spark-comfyui.ngrok.app';
+const COMFYUI_URL = process.env.COMFYUI_URL || 'http://localhost:8188';
 const AUTH = Buffer.from(process.env.COMFYUI_AUTH || 'lumen:studio2026').toString('base64');
 
 export default async function handler(req, res) {
@@ -34,9 +34,13 @@ export default async function handler(req, res) {
         // Use proxy endpoint to avoid CORS/auth issues
         const imageUrl = '/api/image?filename=' + encodeURIComponent(image.filename) + '&subfolder=' + encodeURIComponent(image.subfolder || '') + '&type=' + encodeURIComponent(image.type || 'output');
         
+        // Return filename for future edit operations
         return res.status(200).json({
           status: 'complete',
-          image_url: imageUrl
+          image_url: imageUrl,
+          filename: image.filename,
+          subfolder: image.subfolder || '',
+          type: image.type || 'output'
         });
       }
     }
