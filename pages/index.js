@@ -114,6 +114,9 @@ export default function Home() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadedFilename, setUploadedFilename] = useState(null);
   const [lastGeneratedImage, setLastGeneratedImage] = useState(null); // Track last generated image for edits
+  const [availableLoras, setAvailableLoras] = useState([]);
+  const [selectedLora, setSelectedLora] = useState('auto'); // 'auto', 'none', or specific lora name
+  const [trainedLoras, setTrainedLoras] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [showAdCreator, setShowAdCreator] = useState(false);
   const [adForm, setAdForm] = useState({
@@ -137,6 +140,24 @@ export default function Home() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Fetch available LoRAs on load and periodically (for training updates)
+  useEffect(() => {
+    const fetchLoras = async () => {
+      try {
+        const res = await fetch('/api/loras');
+        const data = await res.json();
+        setAvailableLoras(data.loras || []);
+        setTrainedLoras(data.trained || 0);
+      } catch (e) {
+        console.error('Failed to fetch LoRAs:', e);
+      }
+    };
+    fetchLoras();
+    // Refresh every 5 minutes to catch newly trained LoRAs
+    const interval = setInterval(fetchLoras, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const detectMemeTemplate = (text) => {
     const templates = ['drake:', 'expanding_brain:', 'distracted_bf:', 'this_is_fine:', 'stonks:', 'change_my_mind:'];
@@ -412,10 +433,16 @@ export default function Home() {
           return;
         }
       } else {
+        // Image generation with optional LoRA
+        const loraParam = selectedLora === 'auto' ? undefined : (selectedLora === 'none' ? null : selectedLora);
         res = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: currentInput })
+          body: JSON.stringify({ 
+            prompt: currentInput,
+            lora: loraParam,
+            autoLora: selectedLora === 'auto'
+          })
         });
         data = await res.json();
       }
@@ -787,6 +814,21 @@ export default function Home() {
         <div className="input-area">
           <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*,video/*" onChange={(e) => handleFileUpload(e.target.files[0])} />
           
+          {/* LoRA Selector */}
+          {availableLoras.length > 0 && (
+            <div className="lora-selector">
+              <label>Model Enhancement:</label>
+              <select value={selectedLora} onChange={e => setSelectedLora(e.target.value)}>
+                <option value="auto">🎯 Auto (Category-based)</option>
+                <option value="none">📷 Base Model Only</option>
+                {availableLoras.filter(l => l.includes('_lora')).map(lora => (
+                  <option key={lora} value={lora}>✨ {lora.replace('.safetensors', '').replace('_', ' ')}</option>
+                ))}
+              </select>
+              {trainedLoras > 0 && <span className="trained-badge">{trainedLoras} trained</span>}
+            </div>
+          )}
+          
           <div className="input-box">
             <button className="upload-btn" onClick={() => fileInputRef.current?.click()}>📎</button>
             <input
@@ -883,6 +925,14 @@ export default function Home() {
         .upload-preview button { background: #333; border: none; color: #fff; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; }
         
         .input-area { padding: 20px 40px; border-top: 1px solid #1a1a1a; }
+        
+        /* LoRA Selector */
+        .lora-selector { display: flex; align-items: center; gap: 12px; max-width: 800px; margin: 0 auto 12px auto; padding: 8px 12px; background: #111; border: 1px solid #222; border-radius: 8px; }
+        .lora-selector label { font-size: 12px; color: #666; white-space: nowrap; }
+        .lora-selector select { flex: 1; padding: 6px 10px; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #fff; font-size: 13px; outline: none; cursor: pointer; }
+        .lora-selector select:focus { border-color: #22c55e; }
+        .trained-badge { background: #22c55e; color: #000; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+        
         .input-box { display: flex; gap: 8px; max-width: 800px; margin: 0 auto; background: #151515; border: 1px solid #222; border-radius: 12px; padding: 4px; }
         .upload-btn { width: 44px; height: 44px; background: transparent; border: none; font-size: 20px; cursor: pointer; border-radius: 10px; }
         .upload-btn:hover { background: #222; }

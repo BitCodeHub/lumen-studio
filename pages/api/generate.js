@@ -1,6 +1,71 @@
 const COMFYUI_URL = process.env.COMFYUI_URL || 'http://localhost:8188';
 const AUTH = Buffer.from(process.env.COMFYUI_AUTH || 'lumen:studio2026').toString('base64');
 
+// Auto-select LoRA based on category
+const CATEGORY_LORAS = {
+  'food': 'food_lora.safetensors',
+  'portrait': 'portrait_lora.safetensors',
+  'product': 'product_lora.safetensors',
+  'car': 'automotive_lora.safetensors',
+  'landscape': 'landscape_lora.safetensors',
+  'architecture': 'architecture_lora.safetensors',
+  'wedding': 'wedding_lora.safetensors',
+  'fashion': 'fashion_lora.safetensors',
+};
+
+// Inject LoRA into workflow if available
+function injectLora(workflow, loraName, strength = 0.8) {
+  if (!loraName) return workflow;
+  
+  // Find the checkpoint loader node
+  let checkpointNodeId = null;
+  let modelOutputNode = null;
+  
+  for (const [nodeId, node] of Object.entries(workflow)) {
+    if (node.class_type === 'CheckpointLoaderSimple') {
+      checkpointNodeId = nodeId;
+      break;
+    }
+  }
+  
+  if (!checkpointNodeId) return workflow;
+  
+  // Find nodes that use the model output from checkpoint
+  const modelUsers = [];
+  for (const [nodeId, node] of Object.entries(workflow)) {
+    if (node.inputs?.model?.[0] === checkpointNodeId && node.inputs?.model?.[1] === 0) {
+      modelUsers.push(nodeId);
+    }
+  }
+  
+  // Insert LoRA loader between checkpoint and model users
+  const loraNodeId = '99'; // Use high ID to avoid conflicts
+  workflow[loraNodeId] = {
+    inputs: {
+      lora_name: loraName,
+      strength_model: strength,
+      strength_clip: strength,
+      model: [checkpointNodeId, 0],
+      clip: [checkpointNodeId, 1]
+    },
+    class_type: 'LoraLoader'
+  };
+  
+  // Update model users to use LoRA output
+  for (const nodeId of modelUsers) {
+    workflow[nodeId].inputs.model = [loraNodeId, 0];
+  }
+  
+  // Update CLIP users to use LoRA output
+  for (const [nodeId, node] of Object.entries(workflow)) {
+    if (node.inputs?.clip?.[0] === checkpointNodeId && node.inputs?.clip?.[1] === 1) {
+      workflow[nodeId].inputs.clip = [loraNodeId, 1];
+    }
+  }
+  
+  return workflow;
+}
+
 // Photography category detection (order matters - most specific first)
 function detectCategory(prompt) {
   const lower = prompt.toLowerCase();
@@ -162,7 +227,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { prompt, model } = req.body;
+  const { prompt, model, lora, autoLora = true } = req.body;
 
   if (!prompt) {
     return res.status(400).json({ error: 'Prompt required' });
@@ -172,6 +237,7 @@ export default async function handler(req, res) {
     let workflow;
     let selectedModel;
     let category;
+    let appliedLora = null;
 
     // Manual model override
     if (model) {
@@ -243,6 +309,16 @@ export default async function handler(req, res) {
       }
     }
     
+    // Apply LoRA if specified or auto-select based on category
+    if (lora) {
+      workflow = injectLora(workflow, lora);
+      appliedLora = lora;
+    } else if (autoLora && category && CATEGORY_LORAS[category]) {
+      // Auto-apply trained LoRA for this category if available
+      workflow = injectLora(workflow, CATEGORY_LORAS[category]);
+      appliedLora = CATEGORY_LORAS[category];
+    }
+
     const response = await fetch(COMFYUI_URL + '/prompt', {
       method: 'POST',
       headers: { 
@@ -264,7 +340,8 @@ export default async function handler(req, res) {
       prompt_id: data.prompt_id,
       model: selectedModel,
       category: category || 'manual',
-      message: `Creating photorealistic image with ${selectedModel}...`
+      lora: appliedLora,
+      message: `Creating photorealistic image with ${selectedModel}${appliedLora ? ` + ${appliedLora.replace('.safetensors', '')}` : ''}...`
     });
 
   } catch (error) {
