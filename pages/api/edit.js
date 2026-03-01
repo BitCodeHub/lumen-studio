@@ -1,10 +1,123 @@
-// Image editing endpoint - various workflows
+// Image editing endpoint with full SAM + inpainting
 const COMFYUI_URL = process.env.COMFYUI_URL || 'http://localhost:8188';
 const AUTH = Buffer.from(process.env.COMFYUI_AUTH || 'lumen:studio2026').toString('base64');
 
-// Workflow builders for different operations
+// Extract what to mask from the prompt (e.g., "add meatball in the bowl" -> "bowl")
+function extractMaskTarget(prompt) {
+  const lower = prompt.toLowerCase();
+  
+  // Patterns to find the target area
+  const patterns = [
+    /in the (\w+)/,           // "in the bowl"
+    /on the (\w+)/,           // "on the table"
+    /to the (\w+)/,           // "to the image"
+    /into the (\w+)/,         // "into the soup"
+    /inside the (\w+)/,       // "inside the room"
+    /around the (\w+)/,       // "around the face"
+    /near the (\w+)/,         // "near the window"
+  ];
+  
+  for (const pattern of patterns) {
+    const match = lower.match(pattern);
+    if (match) return match[1];
+  }
+  
+  // Default targets based on common scenarios
+  if (lower.includes('bowl') || lower.includes('soup') || lower.includes('dish')) return 'bowl';
+  if (lower.includes('face') || lower.includes('person')) return 'face';
+  if (lower.includes('background')) return 'background';
+  if (lower.includes('sky')) return 'sky';
+  
+  return 'center'; // Default - mask center area
+}
+
+// Extract what to add from the prompt
+function extractAddition(prompt) {
+  const lower = prompt.toLowerCase();
+  
+  const patterns = [
+    /add (\w+(?:\s+\w+)?)/,      // "add meatball"
+    /put (\w+(?:\s+\w+)?)/,      // "put flowers"
+    /place (\w+(?:\s+\w+)?)/,    // "place a car"
+    /insert (\w+(?:\s+\w+)?)/,   // "insert text"
+    /include (\w+(?:\s+\w+)?)/,  // "include people"
+  ];
+  
+  for (const pattern of patterns) {
+    const match = lower.match(pattern);
+    if (match) return match[1];
+  }
+  
+  return prompt; // Return full prompt if no pattern matched
+}
+
+// Full SAM + Inpainting workflow (proper masking)
 const WORKFLOWS = {
-  // Add element to image (low denoise to preserve original)
+  // SAM-based inpainting - segments target area and inpaints
+  sam_inpaint: (filename, prompt, maskTarget, addition) => ({
+    // Load the image
+    "1": { "inputs": { "image": filename, "upload": "image" }, "class_type": "LoadImage" },
+    
+    // Load SAM model
+    "2": { "inputs": { "model_name": "sam_vit_b_01ec64.pth" }, "class_type": "SAMModelLoader (segment anything)" },
+    
+    // Load GroundingDino model
+    "3": { "inputs": { "model_name": "groundingdino_swint_ogc.pth" }, "class_type": "GroundingDinoModelLoader (segment anything)" },
+    
+    // Segment the target area (e.g., "bowl") to get mask
+    "4": { "inputs": { 
+      "sam_model": ["2", 0], 
+      "grounding_dino_model": ["3", 0], 
+      "image": ["1", 0], 
+      "prompt": maskTarget,
+      "threshold": 0.3
+    }, "class_type": "GroundingDinoSAMSegment (segment anything)" },
+    
+    // Load checkpoint
+    "5": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
+    
+    // Encode for inpainting with mask
+    "6": { "inputs": { 
+      "pixels": ["1", 0], 
+      "vae": ["5", 2], 
+      "mask": ["4", 1],  // Mask from SAM
+      "grow_mask_by": 6 
+    }, "class_type": "VAEEncodeForInpaint" },
+    
+    // Positive prompt - what to add
+    "7": { "inputs": { 
+      "text": `${addition}, seamlessly integrated, matching lighting and perspective, photorealistic, natural placement, professional photography, RAW photo`, 
+      "clip": ["5", 1] 
+    }, "class_type": "CLIPTextEncode" },
+    
+    // Negative prompt
+    "8": { "inputs": { 
+      "text": "ugly, blurry, deformed, mismatched lighting, floating, unnatural, different style, out of place, fake, artificial, low quality", 
+      "clip": ["5", 1] 
+    }, "class_type": "CLIPTextEncode" },
+    
+    // KSampler - inpaint only in masked area
+    "9": { "inputs": { 
+      "seed": Math.floor(Math.random() * 1e9), 
+      "steps": 35, 
+      "cfg": 6, 
+      "sampler_name": "dpmpp_2m_sde", 
+      "scheduler": "karras", 
+      "denoise": 1,  // Full denoise in masked area only
+      "model": ["5", 0], 
+      "positive": ["7", 0], 
+      "negative": ["8", 0], 
+      "latent_image": ["6", 0] 
+    }, "class_type": "KSampler" },
+    
+    // Decode
+    "10": { "inputs": { "samples": ["9", 0], "vae": ["5", 2] }, "class_type": "VAEDecode" },
+    
+    // Save
+    "11": { "inputs": { "filename_prefix": "inpaint", "images": ["10", 0] }, "class_type": "SaveImage" }
+  }),
+
+  // Fallback: Low-denoise img2img for when SAM fails
   add_element: (filename, prompt) => ({
     "1": { "inputs": { "image": filename, "upload": "image" }, "class_type": "LoadImage" },
     "2": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
@@ -26,18 +139,6 @@ const WORKFLOWS = {
     "6": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 30, "cfg": 6, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 0.55, "model": ["2", 0], "positive": ["4", 0], "negative": ["5", 0], "latent_image": ["3", 0] }, "class_type": "KSampler" },
     "7": { "inputs": { "samples": ["6", 0], "vae": ["2", 2] }, "class_type": "VAEDecode" },
     "8": { "inputs": { "filename_prefix": "edit_transform", "images": ["7", 0] }, "class_type": "SaveImage" }
-  }),
-
-  // Standard img2img with prompt
-  img2img: (filename, prompt, strength = 0.5) => ({
-    "1": { "inputs": { "image": filename, "upload": "image" }, "class_type": "LoadImage" },
-    "2": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
-    "3": { "inputs": { "pixels": ["1", 0], "vae": ["2", 2] }, "class_type": "VAEEncode" },
-    "4": { "inputs": { "text": prompt + ", photorealistic, high quality", "clip": ["2", 1] }, "class_type": "CLIPTextEncode" },
-    "5": { "inputs": { "text": "ugly, blurry, low quality, deformed", "clip": ["2", 1] }, "class_type": "CLIPTextEncode" },
-    "6": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 30, "cfg": 6, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": strength, "model": ["2", 0], "positive": ["4", 0], "negative": ["5", 0], "latent_image": ["3", 0] }, "class_type": "KSampler" },
-    "7": { "inputs": { "samples": ["6", 0], "vae": ["2", 2] }, "class_type": "VAEDecode" },
-    "8": { "inputs": { "filename_prefix": "edit", "images": ["7", 0] }, "class_type": "SaveImage" }
   }),
 
   // Upscale 4x
@@ -70,27 +171,19 @@ const WORKFLOWS = {
     "10": { "inputs": { "samples": ["9", 0], "vae": ["2", 2] }, "class_type": "VAEDecode" },
     "11": { "inputs": { "filename_prefix": "style", "images": ["10", 0] }, "class_type": "SaveImage" }
   }),
-
-  // Remove background
-  remove_bg: (filename) => ({
-    "1": { "inputs": { "image": filename, "upload": "image" }, "class_type": "LoadImage" },
-    "2": { "inputs": { "model_name": "u2net.onnx" }, "class_type": "RemBGSession" },
-    "3": { "inputs": { "rmbg_session": ["2", 0], "image": ["1", 0] }, "class_type": "ImageRemoveBackground" },
-    "4": { "inputs": { "filename_prefix": "nobg", "images": ["3", 0] }, "class_type": "SaveImage" }
-  }),
 };
 
 // Detect operation from prompt
 function detectOperation(prompt) {
   const lower = prompt.toLowerCase();
   
-  // Add/insert operations (need low denoise)
+  // Add/insert operations - use SAM inpainting
   if (lower.includes('add ') || lower.includes('put ') || lower.includes('place ') || 
-      lower.includes('insert ') || lower.includes('include ') || lower.includes('with ')) {
-    return 'add_element';
+      lower.includes('insert ') || lower.includes('include ')) {
+    return 'sam_inpaint';
   }
   
-  // Transform/change operations (medium denoise)
+  // Transform/change operations
   if (lower.includes('change ') || lower.includes('make ') || lower.includes('turn ') ||
       lower.includes('convert ') || lower.includes('transform ')) {
     return 'transform';
@@ -112,13 +205,7 @@ function detectOperation(prompt) {
     return 'style_transfer';
   }
   
-  // Remove background
-  if (lower.includes('remove background') || lower.includes('no background') || 
-      lower.includes('transparent') || lower.includes('cut out')) {
-    return 'remove_bg';
-  }
-  
-  return 'img2img';
+  return 'add_element'; // Fallback to low-denoise
 }
 
 export default async function handler(req, res) {
@@ -138,9 +225,15 @@ export default async function handler(req, res) {
     let description;
 
     switch (op) {
+      case 'sam_inpaint':
+        const maskTarget = extractMaskTarget(prompt);
+        const addition = extractAddition(prompt);
+        workflow = WORKFLOWS.sam_inpaint(filename, prompt, maskTarget, addition);
+        description = `SAM inpainting: adding "${addition}" in "${maskTarget}" area`;
+        break;
       case 'add_element':
         workflow = WORKFLOWS.add_element(filename, prompt);
-        description = 'Adding element to image (preserving original)';
+        description = 'Adding element (low denoise fallback)';
         break;
       case 'transform':
         workflow = WORKFLOWS.transform(filename, prompt);
@@ -158,12 +251,8 @@ export default async function handler(req, res) {
         workflow = WORKFLOWS.style_transfer(filename, prompt);
         description = 'Applying style transfer';
         break;
-      case 'remove_bg':
-        workflow = WORKFLOWS.remove_bg(filename);
-        description = 'Removing background';
-        break;
       default:
-        workflow = WORKFLOWS.img2img(filename, prompt || 'enhance this image', 0.45);
+        workflow = WORKFLOWS.add_element(filename, prompt || 'enhance this image');
         description = 'Processing image';
     }
 
@@ -178,6 +267,29 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const text = await response.text();
+      // If SAM fails, fallback to add_element
+      if (op === 'sam_inpaint' && text.includes('error')) {
+        console.log('SAM failed, falling back to add_element');
+        const fallbackWorkflow = WORKFLOWS.add_element(filename, prompt);
+        const fallbackRes = await fetch(COMFYUI_URL + '/prompt', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Basic ' + AUTH,
+          },
+          body: JSON.stringify({ prompt: fallbackWorkflow }),
+        });
+        
+        if (fallbackRes.ok) {
+          const data = await fallbackRes.json();
+          return res.status(200).json({
+            status: 'generating',
+            prompt_id: data.prompt_id,
+            operation: 'add_element',
+            message: 'Adding element (fallback mode)...',
+          });
+        }
+      }
       throw new Error('ComfyUI error: ' + text);
     }
 
