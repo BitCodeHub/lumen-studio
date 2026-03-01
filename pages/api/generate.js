@@ -45,12 +45,6 @@ function detectCategory(prompt) {
     'modern', 'minimalist', 'luxury home', 'real estate', 'hotel', 'lobby'];
   if (archKeywords.some(k => lower.includes(k))) return 'architecture';
   
-  // Car/Vehicle photography
-  const carKeywords = ['car', 'vehicle', 'automobile', 'sports car', 'luxury car',
-    'motorcycle', 'bike', 'truck', 'suv', 'sedan', 'coupe', 'ferrari', 'porsche',
-    'lamborghini', 'bmw', 'mercedes', 'tesla'];
-  if (carKeywords.some(k => lower.includes(k))) return 'car';
-  
   // Default to general photography
   return 'general';
 }
