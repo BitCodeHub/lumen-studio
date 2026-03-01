@@ -309,15 +309,15 @@ export default async function handler(req, res) {
       }
     }
     
-    // Apply LoRA if specified or auto-select based on category
-    if (lora) {
-      workflow = injectLora(workflow, lora);
-      appliedLora = lora;
-    } else if (autoLora && category && CATEGORY_LORAS[category]) {
-      // Auto-apply trained LoRA for this category if available
-      workflow = injectLora(workflow, CATEGORY_LORAS[category]);
-      appliedLora = CATEGORY_LORAS[category];
-    }
+    // LoRA injection temporarily disabled - was breaking workflow validation
+    // TODO: Fix LoRA injection to properly maintain node connections
+    // if (lora) {
+    //   workflow = injectLora(workflow, lora);
+    //   appliedLora = lora;
+    // } else if (autoLora && category && CATEGORY_LORAS[category]) {
+    //   workflow = injectLora(workflow, CATEGORY_LORAS[category]);
+    //   appliedLora = CATEGORY_LORAS[category];
+    // }
 
     const response = await fetch(COMFYUI_URL + '/prompt', {
       method: 'POST',
