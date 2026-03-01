@@ -1,5 +1,5 @@
-const COMFYUI_URL = 'https://spark-comfyui.ngrok.app';
-const AUTH = Buffer.from('lumen:studio2026').toString('base64');
+const COMFYUI_URL = process.env.COMFYUI_URL || 'https://spark-comfyui.ngrok.app';
+const AUTH = Buffer.from(process.env.COMFYUI_AUTH || 'lumen:studio2026').toString('base64');
 
 // Simple SDXL workflow
 function buildWorkflow(prompt) {

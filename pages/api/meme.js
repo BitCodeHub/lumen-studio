@@ -70,8 +70,8 @@ const IMGFLIP_USERNAME = process.env.IMGFLIP_USERNAME || '';
 const IMGFLIP_PASSWORD = process.env.IMGFLIP_PASSWORD || '';
 
 // Fallback: ComfyUI with meme-specific prompts
-const COMFYUI_URL = 'https://spark-comfyui.ngrok.app';
-const AUTH = Buffer.from('lumen:studio2026').toString('base64');
+const COMFYUI_URL = process.env.COMFYUI_URL || 'https://spark-comfyui.ngrok.app';
+const AUTH = Buffer.from(process.env.COMFYUI_AUTH || 'lumen:studio2026').toString('base64');
 
 // Meme-specific prompts for AI generation (fallback)
 const MEME_PROMPTS = {
