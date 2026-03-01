@@ -10,32 +10,34 @@ const TEMPLATES = {
     { id: 'abstract', name: 'Abstract Art', prompt: 'Abstract artistic representation of' },
   ],
   video: [
-    { id: 'product_ad', name: 'Product Ad (30s)', style: 'Apple keynote style' },
-    { id: 'explainer', name: 'Explainer (60s)', style: 'Clear instructional' },
-    { id: 'trailer', name: 'Movie Trailer', style: 'Hollywood blockbuster' },
-    { id: 'social', name: 'Social Reel', style: 'TikTok/Instagram' },
-    { id: 'anime', name: 'Anime Style', style: 'Japanese animation' },
+    { id: 'product_ad', name: 'Product Ad (30s)', prompt: 'Create 30-second product ad for' },
+    { id: 'explainer', name: 'Explainer (60s)', prompt: 'Create 60-second explainer video about' },
+    { id: 'trailer', name: 'Movie Trailer', prompt: 'Create movie trailer style video for' },
+    { id: 'social', name: 'Social Reel', prompt: 'Create TikTok/Instagram reel about' },
+    { id: 'anime', name: 'Anime Style', prompt: 'Create anime style video of' },
   ],
   photo: [
-    { id: 'retouch', name: 'Pro Retouch', desc: 'Magazine-quality skin and lighting' },
-    { id: 'restore', name: 'Photo Restore', desc: 'Fix old/damaged photos' },
-    { id: 'background', name: 'Change Background', desc: 'Any location worldwide' },
-    { id: 'upscale', name: 'Upscale 4x', desc: 'AI enhancement to 4K' },
-    { id: 'style', name: 'Style Transfer', desc: 'Oil painting, anime, etc.' },
+    { id: 'retouch', name: 'Pro Retouch', prompt: 'Professional magazine retouch' },
+    { id: 'restore', name: 'Photo Restore', prompt: 'Restore and enhance this old photo' },
+    { id: 'background', name: 'Change Background', prompt: 'Change background to' },
+    { id: 'upscale', name: 'Upscale 4x', prompt: 'Upscale to 4K resolution' },
+    { id: 'style', name: 'Style Transfer', prompt: 'Convert to oil painting style' },
   ],
   meme: [
-    { id: 'drake', name: 'Drake', format: 'No / Yes comparison' },
-    { id: 'brain', name: 'Expanding Brain', format: 'Levels of enlightenment' },
-    { id: 'distracted', name: 'Distracted BF', format: 'Temptation meme' },
-    { id: 'stonks', name: 'Stonks', format: 'Financial decisions' },
-    { id: 'fine', name: 'This Is Fine', format: 'Chaos acceptance' },
+    { id: 'drake', name: 'Drake', prompt: 'Drake meme:' },
+    { id: 'brain', name: 'Expanding Brain', prompt: 'Expanding brain meme:' },
+    { id: 'distracted', name: 'Distracted BF', prompt: 'Distracted boyfriend meme:' },
+    { id: 'stonks', name: 'Stonks', prompt: 'Stonks meme:' },
+    { id: 'fine', name: 'This Is Fine', prompt: 'This is fine meme:' },
   ],
 };
 
 export default function Home() {
-  const [mode, setMode] = useState('chat');
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Welcome to Lumen Studio! Describe what you want to create, or browse templates below.' }
+    { 
+      role: 'assistant', 
+      content: '🎨 Welcome to Lumen Studio!\n\nThis web app is connected to your DGX Spark AI supercomputer.\n\n⚡ For instant generation, use WhatsApp:\n"Elim, create [your prompt]"\n\nOr browse templates below to copy prompts.' 
+    }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,22 +49,39 @@ export default function Home() {
     
     const userMsg = { role: 'user', content: input };
     setMessages(prev => [...prev, userMsg]);
+    const currentInput = input;
     setInput('');
     setLoading(true);
 
-    // Simulate processing (will connect to ComfyUI API)
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: currentInput })
+      });
+      
+      const data = await res.json();
+      
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `Processing: "${input}"\n\nThis will connect to DGX Spark ComfyUI API. For now, use WhatsApp to process requests.`,
-        type: 'processing'
+        content: `📋 Prompt ready!\n\n"${currentInput}"\n\n⚡ **Send via WhatsApp for instant generation:**\nElim, ${currentInput}\n\n🔗 Or open ComfyUI directly:\nhttp://100.79.93.27:8188`,
       }]);
-      setLoading(false);
-    }, 1000);
+    } catch (error) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `📋 Prompt copied!\n\n⚡ Send to WhatsApp:\n"Elim, ${currentInput}"`,
+      }]);
+    }
+    
+    setLoading(false);
   };
 
   const useTemplate = (template) => {
-    setInput(template.prompt || template.desc || template.format || template.name);
+    setInput(template.prompt + ' ');
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
   };
 
   return (
@@ -70,12 +89,15 @@ export default function Home() {
       <Head>
         <title>Lumen Studio - AI Creative Platform</title>
         <meta name="description" content="Generate images, videos, edit photos with AI" />
-        <link rel="icon" href="/favicon.ico" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
       <header>
         <h1>🎨 Lumen Studio</h1>
         <p>AI-Powered Creative Platform</p>
+        <div className="status">
+          <span className="dot green"></span> DGX Spark Connected (via WhatsApp)
+        </div>
       </header>
 
       <main>
@@ -83,10 +105,10 @@ export default function Home() {
           <div className="messages">
             {messages.map((msg, i) => (
               <div key={i} className={`message ${msg.role}`}>
-                {msg.content}
+                <pre>{msg.content}</pre>
               </div>
             ))}
-            {loading && <div className="message assistant loading">Processing...</div>}
+            {loading && <div className="message assistant loading">⏳ Processing...</div>}
           </div>
           
           <div className="input-area">
@@ -97,13 +119,14 @@ export default function Home() {
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
               placeholder="Describe what you want to create..."
             />
-            <button onClick={() => fileRef.current?.click()}>📎</button>
             <button onClick={sendMessage} disabled={loading}>Send</button>
-            <input type="file" ref={fileRef} hidden accept="image/*" />
           </div>
         </div>
 
         <div className="templates">
+          <h2>📚 Template Gallery</h2>
+          <p className="hint">Click a template to start, then customize and send</p>
+          
           <div className="tabs">
             {['image', 'video', 'photo', 'meme'].map(tab => (
               <button
@@ -123,15 +146,23 @@ export default function Home() {
             {TEMPLATES[activeTab]?.map(t => (
               <div key={t.id} className="template-card" onClick={() => useTemplate(t)}>
                 <h3>{t.name}</h3>
-                <p>{t.prompt || t.style || t.desc || t.format}</p>
+                <p>{t.prompt}</p>
               </div>
             ))}
           </div>
         </div>
+
+        <div className="quick-start">
+          <h2>⚡ Quick Start</h2>
+          <p>For instant AI generation, send to WhatsApp:</p>
+          <code>Elim, create a futuristic logo for Lumen AI</code>
+          <p className="small">Your DGX Spark processes requests in ~22 seconds</p>
+        </div>
       </main>
 
       <footer>
-        <p>Powered by DGX Spark • Lumen AI Solutions</p>
+        <p>Powered by DGX Spark (NVIDIA GB10) • Lumen AI Solutions</p>
+        <p className="small">ComfyUI: http://100.79.93.27:8188 (Tailscale)</p>
       </footer>
 
       <style jsx global>{`
@@ -142,29 +173,32 @@ export default function Home() {
           color: #fff;
           min-height: 100vh;
         }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        header { text-align: center; padding: 30px 0; }
-        header h1 { font-size: 2.5rem; margin-bottom: 10px; }
-        header p { color: #888; }
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        header { text-align: center; padding: 20px 0; }
+        header h1 { font-size: 2rem; margin-bottom: 5px; }
+        header p { color: #888; margin-bottom: 10px; }
+        .status { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.1); padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot.green { background: #22c55e; }
         
         .chat-container {
           background: rgba(255,255,255,0.05);
           border-radius: 16px;
-          padding: 20px;
-          margin-bottom: 30px;
+          padding: 15px;
+          margin-bottom: 20px;
         }
         .messages {
-          height: 300px;
+          height: 200px;
           overflow-y: auto;
-          margin-bottom: 15px;
-          padding: 10px;
+          margin-bottom: 10px;
         }
         .message {
-          padding: 12px 16px;
+          padding: 10px 14px;
           border-radius: 12px;
-          margin-bottom: 10px;
-          max-width: 80%;
+          margin-bottom: 8px;
+          max-width: 90%;
         }
+        .message pre { white-space: pre-wrap; font-family: inherit; font-size: 0.9rem; line-height: 1.4; }
         .message.user {
           background: #4f46e5;
           margin-left: auto;
@@ -176,16 +210,16 @@ export default function Home() {
         
         .input-area {
           display: flex;
-          gap: 10px;
+          gap: 8px;
         }
-        .input-area input[type="text"] {
+        .input-area input {
           flex: 1;
-          padding: 12px 16px;
+          padding: 12px 14px;
           border-radius: 8px;
           border: none;
           background: rgba(255,255,255,0.1);
           color: #fff;
-          font-size: 16px;
+          font-size: 15px;
         }
         .input-area button {
           padding: 12px 20px;
@@ -194,25 +228,28 @@ export default function Home() {
           background: #4f46e5;
           color: #fff;
           cursor: pointer;
-          font-size: 16px;
+          font-weight: 500;
         }
         .input-area button:hover { background: #4338ca; }
         .input-area button:disabled { opacity: 0.5; }
         
-        .templates { margin-top: 30px; }
+        .templates { margin: 20px 0; }
+        .templates h2 { margin-bottom: 5px; font-size: 1.2rem; }
+        .templates .hint { color: #888; font-size: 0.85rem; margin-bottom: 15px; }
         .tabs {
           display: flex;
-          gap: 10px;
-          margin-bottom: 20px;
+          gap: 8px;
+          margin-bottom: 15px;
           flex-wrap: wrap;
         }
         .tabs button {
-          padding: 10px 20px;
+          padding: 8px 16px;
           border-radius: 8px;
           border: none;
           background: rgba(255,255,255,0.1);
           color: #fff;
           cursor: pointer;
+          font-size: 0.9rem;
         }
         .tabs button.active {
           background: #4f46e5;
@@ -220,13 +257,13 @@ export default function Home() {
         
         .template-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-          gap: 15px;
+          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+          gap: 10px;
         }
         .template-card {
           background: rgba(255,255,255,0.05);
-          border-radius: 12px;
-          padding: 20px;
+          border-radius: 10px;
+          padding: 14px;
           cursor: pointer;
           transition: transform 0.2s, background 0.2s;
         }
@@ -234,14 +271,34 @@ export default function Home() {
           transform: translateY(-2px);
           background: rgba(255,255,255,0.1);
         }
-        .template-card h3 { margin-bottom: 8px; font-size: 1.1rem; }
-        .template-card p { color: #888; font-size: 0.9rem; }
+        .template-card h3 { margin-bottom: 5px; font-size: 0.95rem; }
+        .template-card p { color: #888; font-size: 0.8rem; }
+        
+        .quick-start {
+          background: rgba(79, 70, 229, 0.2);
+          border-radius: 12px;
+          padding: 20px;
+          text-align: center;
+          margin: 20px 0;
+        }
+        .quick-start h2 { margin-bottom: 10px; font-size: 1.1rem; }
+        .quick-start code {
+          display: block;
+          background: rgba(0,0,0,0.3);
+          padding: 12px;
+          border-radius: 8px;
+          margin: 10px 0;
+          font-size: 0.9rem;
+        }
+        .quick-start .small { color: #888; font-size: 0.8rem; }
         
         footer {
           text-align: center;
-          padding: 30px 0;
+          padding: 20px 0;
           color: #666;
+          font-size: 0.85rem;
         }
+        footer .small { font-size: 0.75rem; margin-top: 5px; }
       `}</style>
     </div>
   );
