@@ -1,69 +1,16 @@
 const COMFYUI_URL = process.env.COMFYUI_URL || 'http://localhost:8188';
 const AUTH = Buffer.from(process.env.COMFYUI_AUTH || 'lumen:studio2026').toString('base64');
 
-// Auto-select LoRA based on category
-const CATEGORY_LORAS = {
+// Available LoRAs - only inject if they exist
+const AVAILABLE_LORAS = {
   'food': 'food_lora.safetensors',
   'portrait': 'portrait_lora.safetensors',
   'product': 'product_lora.safetensors',
-  'car': 'automotive_lora.safetensors',
-  'landscape': 'landscape_lora.safetensors',
-  'architecture': 'architecture_lora.safetensors',
-  'wedding': 'wedding_lora.safetensors',
-  'fashion': 'fashion_lora.safetensors',
 };
 
-// Inject LoRA into workflow if available
-function injectLora(workflow, loraName, strength = 0.8) {
-  if (!loraName) return workflow;
-  
-  // Find the checkpoint loader node
-  let checkpointNodeId = null;
-  let modelOutputNode = null;
-  
-  for (const [nodeId, node] of Object.entries(workflow)) {
-    if (node.class_type === 'CheckpointLoaderSimple') {
-      checkpointNodeId = nodeId;
-      break;
-    }
-  }
-  
-  if (!checkpointNodeId) return workflow;
-  
-  // Find nodes that use the model output from checkpoint
-  const modelUsers = [];
-  for (const [nodeId, node] of Object.entries(workflow)) {
-    if (node.inputs?.model?.[0] === checkpointNodeId && node.inputs?.model?.[1] === 0) {
-      modelUsers.push(nodeId);
-    }
-  }
-  
-  // Insert LoRA loader between checkpoint and model users
-  const loraNodeId = '99'; // Use high ID to avoid conflicts
-  workflow[loraNodeId] = {
-    inputs: {
-      lora_name: loraName,
-      strength_model: strength,
-      strength_clip: strength,
-      model: [checkpointNodeId, 0],
-      clip: [checkpointNodeId, 1]
-    },
-    class_type: 'LoraLoader'
-  };
-  
-  // Update model users to use LoRA output
-  for (const nodeId of modelUsers) {
-    workflow[nodeId].inputs.model = [loraNodeId, 0];
-  }
-  
-  // Update CLIP users to use LoRA output
-  for (const [nodeId, node] of Object.entries(workflow)) {
-    if (node.inputs?.clip?.[0] === checkpointNodeId && node.inputs?.clip?.[1] === 1) {
-      workflow[nodeId].inputs.clip = [loraNodeId, 1];
-    }
-  }
-  
-  return workflow;
+// Check if LoRA exists for category
+function getLoraForCategory(category) {
+  return AVAILABLE_LORAS[category] || null;
 }
 
 // Photography category detection (order matters - most specific first)
@@ -75,7 +22,7 @@ function detectCategory(prompt) {
     'fashion', 'model', 'face', 'human', 'people', 'headshot', 'influencer',
     'selfie', 'couple', 'family', 'child', 'baby', 'elderly', 'bride', 'groom',
     'wedding', 'dress', 'suit', 'businessman', 'businesswoman', 'athlete',
-    'dancer', 'musician', 'actor', 'actress', 'celebrity'];
+    'dancer', 'musician', 'actor', 'actress', 'celebrity', 'asian'];
   if (portraitKeywords.some(k => lower.includes(k))) return 'portrait';
   
   // Car/Vehicle photography (check before product - cars are specific)
@@ -117,11 +64,87 @@ function detectCategory(prompt) {
 // MAXIMUM PHOTOREALISM - Universal anti-AI negative prompt
 const PHOTO_NEGATIVE = `ugly, blurry, low quality, deformed, disfigured, bad anatomy, bad proportions, watermark, text, signature, jpeg artifacts, poorly drawn, cartoon, anime, illustration, painting, drawing, cgi, 3d render, artificial, fake, plastic, oversaturated, amateur, grainy, noisy, AI generated, airbrushed, smooth skin, digital art, unrealistic, overprocessed, HDR, hyper saturated, video game, unnatural colors, synthetic, computer generated, midjourney, dall-e, stable diffusion artifacts`;
 
+// Build workflow with optional LoRA - proper integration from start
+function buildWorkflowWithLora(baseWorkflow, loraName, strength = 0.7) {
+  if (!loraName) return baseWorkflow;
+  
+  // Create new workflow with LoRA loader between checkpoint and sampler
+  const workflow = {};
+  
+  // Node 1: Checkpoint loader (same)
+  workflow["1"] = baseWorkflow["1"];
+  
+  // Node 2: LoRA loader (NEW - between checkpoint and everything else)
+  workflow["2"] = {
+    "inputs": {
+      "lora_name": loraName,
+      "strength_model": strength,
+      "strength_clip": strength,
+      "model": ["1", 0],
+      "clip": ["1", 1]
+    },
+    "class_type": "LoraLoader"
+  };
+  
+  // Node 3: Empty latent (was node 2)
+  workflow["3"] = baseWorkflow["2"];
+  
+  // Node 4: Positive prompt - now uses LoRA clip output
+  workflow["4"] = {
+    ...baseWorkflow["3"],
+    "inputs": {
+      ...baseWorkflow["3"].inputs,
+      "clip": ["2", 1]  // Use LoRA clip output
+    }
+  };
+  
+  // Node 5: Negative prompt - now uses LoRA clip output
+  workflow["5"] = {
+    ...baseWorkflow["4"],
+    "inputs": {
+      ...baseWorkflow["4"].inputs,
+      "clip": ["2", 1]  // Use LoRA clip output
+    }
+  };
+  
+  // Node 6: KSampler - uses LoRA model and renumbered nodes
+  workflow["6"] = {
+    "inputs": {
+      ...baseWorkflow["5"].inputs,
+      "model": ["2", 0],      // Use LoRA model output
+      "positive": ["4", 0],   // Renumbered positive
+      "negative": ["5", 0],   // Renumbered negative
+      "latent_image": ["3", 0] // Renumbered latent
+    },
+    "class_type": "KSampler"
+  };
+  
+  // Node 7: VAE Decode
+  workflow["7"] = {
+    "inputs": {
+      "samples": ["6", 0],
+      "vae": ["1", 2]  // VAE still from checkpoint
+    },
+    "class_type": "VAEDecode"
+  };
+  
+  // Node 8: Save Image
+  workflow["8"] = {
+    "inputs": {
+      ...baseWorkflow["7"].inputs,
+      "images": ["7", 0]  // Renumbered
+    },
+    "class_type": "SaveImage"
+  };
+  
+  return workflow;
+}
+
 // Portrait/People workflow (Juggernaut XL - best for humans)
-function buildPortraitWorkflow(prompt) {
+function buildPortraitWorkflow(prompt, loraName = null) {
   const enhanced = `${prompt}, masterpiece, ultra high resolution, photorealistic, RAW photo, 8k uhd, shot on Sony A7R IV with 85mm f/1.4 GM lens, professional photography, cinematic lighting, shallow depth of field, natural skin texture with visible pores, imperfect skin with natural blemishes, catch lights in eyes, studio quality, sharp focus, professional color grading, film grain, real photograph taken by professional photographer, Vogue magazine quality, natural makeup, realistic hair strands`;
   
-  return {
+  const base = {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1024, "height": 1344, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
     "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
@@ -130,13 +153,15 @@ function buildPortraitWorkflow(prompt) {
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "portrait", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
+  
+  return loraName ? buildWorkflowWithLora(base, loraName) : base;
 }
 
 // Food Photography workflow
-function buildFoodWorkflow(prompt) {
+function buildFoodWorkflow(prompt, loraName = null) {
   const enhanced = `${prompt}, professional food photography, shot on Canon EOS R5 with 100mm macro lens at f/2.8, natural window lighting with soft diffused shadows, steam rising naturally, shallow depth of field, food magazine cover quality, michelin star presentation, appetizing, mouth-watering, high-end restaurant styling, RAW photo, 8k uhd, photorealistic, natural colors, realistic textures, editorial quality, Bon Appetit magazine style, real photograph, natural imperfections in food`;
   
-  return {
+  const base = {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
     "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
@@ -145,13 +170,15 @@ function buildFoodWorkflow(prompt) {
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "food", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
+  
+  return loraName ? buildWorkflowWithLora(base, loraName) : base;
 }
 
 // Product Photography workflow
-function buildProductWorkflow(prompt) {
+function buildProductWorkflow(prompt, loraName = null) {
   const enhanced = `${prompt}, professional product photography, shot on Phase One IQ4 150MP with 120mm macro lens at f/8, studio lighting setup with softboxes, clean gradient background, commercial advertising quality, sharp focus throughout, product catalog style, RAW photo, 8k uhd, photorealistic, perfect reflections, luxury presentation, high-end advertising, real photograph for e-commerce, natural material textures`;
   
-  return {
+  const base = {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
     "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
@@ -160,13 +187,15 @@ function buildProductWorkflow(prompt) {
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "product", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
+  
+  return loraName ? buildWorkflowWithLora(base, loraName) : base;
 }
 
 // Landscape Photography workflow
-function buildLandscapeWorkflow(prompt) {
+function buildLandscapeWorkflow(prompt, loraName = null) {
   const enhanced = `${prompt}, professional landscape photography, shot on Nikon Z9 with 24-70mm f/2.8 lens, golden hour lighting, dramatic sky with natural cloud formations, National Geographic quality, ultra wide dynamic range, RAW photo, 8k uhd, photorealistic, stunning composition using rule of thirds, leading lines, epic vista, award-winning nature photography, real photograph, subtle film grain, natural atmospheric haze`;
   
-  return {
+  const base = {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1344, "height": 768, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
     "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
@@ -175,13 +204,15 @@ function buildLandscapeWorkflow(prompt) {
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "landscape", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
+  
+  return loraName ? buildWorkflowWithLora(base, loraName) : base;
 }
 
 // Architecture/Interior Photography workflow
-function buildArchitectureWorkflow(prompt) {
+function buildArchitectureWorkflow(prompt, loraName = null) {
   const enhanced = `${prompt}, professional architectural photography, shot on Canon 5DS R with 24mm tilt-shift lens, perfectly straight verticals, interior design magazine quality, natural daylight through windows combined with ambient lighting, clean modern aesthetic, RAW photo, 8k uhd, photorealistic, Architectural Digest style, luxury real estate photography, real photograph, natural material textures, realistic reflections`;
   
-  return {
+  const base = {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1344, "height": 896, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
     "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
@@ -190,13 +221,15 @@ function buildArchitectureWorkflow(prompt) {
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "architecture", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
+  
+  return loraName ? buildWorkflowWithLora(base, loraName) : base;
 }
 
 // Car/Automotive Photography workflow
-function buildCarWorkflow(prompt) {
+function buildCarWorkflow(prompt, loraName = null) {
   const enhanced = `${prompt}, professional automotive photography, shot on Hasselblad H6D-100c with 80mm lens, dramatic studio lighting with perfect reflections on bodywork, showroom quality, car magazine cover, RAW photo, 8k uhd, photorealistic, perfect paint finish with metallic flake visible, dynamic angle, motion blur on wheels if moving, luxury automotive advertising, real photograph of real car, chrome reflections, realistic headlights`;
   
-  return {
+  const base = {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1344, "height": 896, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
     "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
@@ -205,13 +238,15 @@ function buildCarWorkflow(prompt) {
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "car", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
+  
+  return loraName ? buildWorkflowWithLora(base, loraName) : base;
 }
 
 // General Photography workflow (high quality default)
-function buildGeneralWorkflow(prompt) {
+function buildGeneralWorkflow(prompt, loraName = null) {
   const enhanced = `${prompt}, professional photography, shot on high-end full-frame DSLR camera with premium lens, perfect lighting setup, RAW photo, 8k uhd, photorealistic, tack sharp focus, high dynamic range, magazine quality, award-winning photography, natural colors, realistic textures, subtle film grain, real photograph taken by professional photographer, natural imperfections`;
   
-  return {
+  const base = {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
     "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
@@ -220,6 +255,8 @@ function buildGeneralWorkflow(prompt) {
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "photo", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
+  
+  return loraName ? buildWorkflowWithLora(base, loraName) : base;
 }
 
 export default async function handler(req, res) {
@@ -239,85 +276,47 @@ export default async function handler(req, res) {
     let category;
     let appliedLora = null;
 
-    // Manual model override
-    if (model) {
-      switch(model) {
-        case 'portrait':
-        case 'person':
-          workflow = buildPortraitWorkflow(prompt);
-          selectedModel = 'Juggernaut XL (Portrait)';
-          break;
-        case 'food':
-          workflow = buildFoodWorkflow(prompt);
-          selectedModel = 'Juggernaut XL (Food)';
-          break;
-        case 'product':
-          workflow = buildProductWorkflow(prompt);
-          selectedModel = 'Juggernaut XL (Product)';
-          break;
-        case 'landscape':
-        case 'nature':
-          workflow = buildLandscapeWorkflow(prompt);
-          selectedModel = 'Juggernaut XL (Landscape)';
-          break;
-        case 'architecture':
-        case 'interior':
-          workflow = buildArchitectureWorkflow(prompt);
-          selectedModel = 'Juggernaut XL (Architecture)';
-          break;
-        case 'car':
-        case 'automotive':
-          workflow = buildCarWorkflow(prompt);
-          selectedModel = 'Juggernaut XL (Automotive)';
-          break;
-        default:
-          workflow = buildGeneralWorkflow(prompt);
-          selectedModel = 'Juggernaut XL (Photo)';
-      }
-    } else {
-      // Auto-detect category from prompt
-      category = detectCategory(prompt);
-      
-      switch(category) {
-        case 'portrait':
-          workflow = buildPortraitWorkflow(prompt);
-          selectedModel = 'Juggernaut XL (Portrait)';
-          break;
-        case 'food':
-          workflow = buildFoodWorkflow(prompt);
-          selectedModel = 'Juggernaut XL (Food)';
-          break;
-        case 'product':
-          workflow = buildProductWorkflow(prompt);
-          selectedModel = 'Juggernaut XL (Product)';
-          break;
-        case 'landscape':
-          workflow = buildLandscapeWorkflow(prompt);
-          selectedModel = 'Juggernaut XL (Landscape)';
-          break;
-        case 'architecture':
-          workflow = buildArchitectureWorkflow(prompt);
-          selectedModel = 'Juggernaut XL (Architecture)';
-          break;
-        case 'car':
-          workflow = buildCarWorkflow(prompt);
-          selectedModel = 'Juggernaut XL (Automotive)';
-          break;
-        default:
-          workflow = buildGeneralWorkflow(prompt);
-          selectedModel = 'Juggernaut XL (Photo)';
-      }
+    // Auto-detect category from prompt
+    category = detectCategory(prompt);
+    
+    // Get LoRA for this category if auto-apply is enabled and LoRA exists
+    const categoryLora = autoLora ? getLoraForCategory(category) : null;
+    const loraToUse = lora || categoryLora;
+
+    // Build workflow based on category, with LoRA if available
+    switch(category) {
+      case 'portrait':
+        workflow = buildPortraitWorkflow(prompt, loraToUse);
+        selectedModel = 'Juggernaut XL (Portrait)';
+        break;
+      case 'food':
+        workflow = buildFoodWorkflow(prompt, loraToUse);
+        selectedModel = 'Juggernaut XL (Food)';
+        break;
+      case 'product':
+        workflow = buildProductWorkflow(prompt, loraToUse);
+        selectedModel = 'Juggernaut XL (Product)';
+        break;
+      case 'landscape':
+        workflow = buildLandscapeWorkflow(prompt, loraToUse);
+        selectedModel = 'Juggernaut XL (Landscape)';
+        break;
+      case 'architecture':
+        workflow = buildArchitectureWorkflow(prompt, loraToUse);
+        selectedModel = 'Juggernaut XL (Architecture)';
+        break;
+      case 'car':
+        workflow = buildCarWorkflow(prompt, loraToUse);
+        selectedModel = 'Juggernaut XL (Automotive)';
+        break;
+      default:
+        workflow = buildGeneralWorkflow(prompt, loraToUse);
+        selectedModel = 'Juggernaut XL (Photo)';
     }
     
-    // LoRA injection temporarily disabled - was breaking workflow validation
-    // TODO: Fix LoRA injection to properly maintain node connections
-    // if (lora) {
-    //   workflow = injectLora(workflow, lora);
-    //   appliedLora = lora;
-    // } else if (autoLora && category && CATEGORY_LORAS[category]) {
-    //   workflow = injectLora(workflow, CATEGORY_LORAS[category]);
-    //   appliedLora = CATEGORY_LORAS[category];
-    // }
+    if (loraToUse) {
+      appliedLora = loraToUse;
+    }
 
     const response = await fetch(COMFYUI_URL + '/prompt', {
       method: 'POST',
@@ -330,6 +329,46 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const text = await response.text();
+      console.error('ComfyUI error:', text);
+      
+      // If LoRA failed, retry without it
+      if (appliedLora && text.includes('error')) {
+        console.log('LoRA failed, retrying without LoRA...');
+        
+        // Rebuild without LoRA
+        switch(category) {
+          case 'portrait': workflow = buildPortraitWorkflow(prompt, null); break;
+          case 'food': workflow = buildFoodWorkflow(prompt, null); break;
+          case 'product': workflow = buildProductWorkflow(prompt, null); break;
+          case 'landscape': workflow = buildLandscapeWorkflow(prompt, null); break;
+          case 'architecture': workflow = buildArchitectureWorkflow(prompt, null); break;
+          case 'car': workflow = buildCarWorkflow(prompt, null); break;
+          default: workflow = buildGeneralWorkflow(prompt, null);
+        }
+        appliedLora = null;
+        
+        const retryResponse = await fetch(COMFYUI_URL + '/prompt', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': 'Basic ' + AUTH
+          },
+          body: JSON.stringify({ prompt: workflow })
+        });
+        
+        if (retryResponse.ok) {
+          const data = await retryResponse.json();
+          return res.status(200).json({
+            status: 'generating',
+            prompt_id: data.prompt_id,
+            model: selectedModel,
+            category: category,
+            lora: null,
+            message: `Creating photorealistic image with ${selectedModel}...`
+          });
+        }
+      }
+      
       throw new Error('ComfyUI error: ' + response.status + ' - ' + text);
     }
 
@@ -339,7 +378,7 @@ export default async function handler(req, res) {
       status: 'generating',
       prompt_id: data.prompt_id,
       model: selectedModel,
-      category: category || 'manual',
+      category: category,
       lora: appliedLora,
       message: `Creating photorealistic image with ${selectedModel}${appliedLora ? ` + ${appliedLora.replace('.safetensors', '')}` : ''}...`
     });
