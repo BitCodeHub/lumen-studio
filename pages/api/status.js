@@ -31,7 +31,8 @@ export default async function handler(req, res) {
       const output = promptData.outputs[nodeId];
       if (output.images && output.images.length > 0) {
         const image = output.images[0];
-        const imageUrl = COMFYUI_URL + '/view?filename=' + image.filename + '&subfolder=' + (image.subfolder || '') + '&type=' + (image.type || 'output');
+        // Use proxy endpoint to avoid CORS/auth issues
+        const imageUrl = '/api/image?filename=' + encodeURIComponent(image.filename) + '&subfolder=' + encodeURIComponent(image.subfolder || '') + '&type=' + encodeURIComponent(image.type || 'output');
         
         return res.status(200).json({
           status: 'complete',
