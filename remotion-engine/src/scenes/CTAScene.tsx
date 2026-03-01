@@ -19,6 +19,8 @@ interface CTASceneProps {
   isLast: boolean;
   tagline?: string;
   logoUrl?: string;
+  ctaText?: string;
+  headline?: string;
 }
 
 export const CTAScene: React.FC<CTASceneProps> = ({
@@ -27,6 +29,8 @@ export const CTAScene: React.FC<CTASceneProps> = ({
   config,
   tagline,
   logoUrl,
+  ctaText,
+  headline,
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
@@ -167,7 +171,7 @@ export const CTAScene: React.FC<CTASceneProps> = ({
             letterSpacing: 1,
           }}
         >
-          {style === "social" ? "SHOP NOW" : style === "tech" ? "GET STARTED" : style === "nike" ? "JUST DO IT" : "LEARN MORE"}
+          {ctaText || (style === "social" ? "SHOP NOW" : style === "tech" ? "GET STARTED" : style === "nike" ? "JUST DO IT" : "LEARN MORE")}
         </span>
       </div>
 

@@ -154,6 +154,14 @@ export default async function handler(req, res) {
     style = 'tech',   // apple, nike, tech, luxury, social, corporate
     duration = '30s', // 6s, 15s, 30s, 60s
     product,          // Product name (extracted from prompt if not provided)
+    tagline,          // Custom tagline
+    headline,         // Custom headline text
+    ctaText = 'Learn More',  // CTA button text
+    musicStyle = 'upbeat',   // Music style
+    voiceover = 'none',      // Voiceover type
+    voiceoverText = '',      // TTS script
+    logoUrl,          // Uploaded logo URL
+    productImages = [], // Uploaded product image URLs
     useVideo = true,  // Generate video clips (true) or images (false)
     preview = false   // Just return scene breakdown without generating
   } = req.body;
@@ -177,7 +185,7 @@ export default async function handler(req, res) {
     const fps = 24;
     const totalFrames = durationSec * fps;
     
-    // Build response with scene plan
+    // Build response with scene plan including all custom fields
     const response = {
       status: 'planned',
       template: template.name,
@@ -187,7 +195,18 @@ export default async function handler(req, res) {
       scenes: scenes,
       totalFrames: totalFrames,
       fps: fps,
-      musicStyle: template.music,
+      // Custom text fields for Remotion
+      customization: {
+        tagline: tagline || '',
+        headline: headline || '',
+        ctaText: ctaText || 'Learn More',
+        musicStyle: musicStyle || 'upbeat',
+        voiceover: voiceover || 'none',
+        voiceoverText: voiceoverText || '',
+        logoUrl: logoUrl || null,
+        productImages: productImages || [],
+      },
+      musicStyle: musicStyle || template.music,
       estimatedTime: useVideo ? `${scenes.length * 2}-${scenes.length * 3} minutes` : `${scenes.length * 0.5}-${scenes.length * 1} minutes`,
       message: `Planned ${scenes.length} scenes for ${durationSec}s ${template.name} ad`
     };

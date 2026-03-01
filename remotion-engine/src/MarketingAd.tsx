@@ -32,6 +32,8 @@ interface MarketingAdProps {
   style: "apple" | "nike" | "tech" | "luxury" | "social" | "corporate";
   product: string;
   tagline: string;
+  headline?: string;
+  ctaText?: string;
   primaryColor: string;
   secondaryColor: string;
   logoUrl?: string;
@@ -164,6 +166,8 @@ export const MarketingAd: React.FC<MarketingAdProps> = ({
   style,
   product,
   tagline,
+  headline,
+  ctaText,
   primaryColor,
   secondaryColor,
   logoUrl,
@@ -254,6 +258,8 @@ export const MarketingAd: React.FC<MarketingAdProps> = ({
               isFirst={index === 0}
               isLast={index === sceneFrames.length - 1}
               tagline={tagline}
+              headline={headline}
+              ctaText={ctaText}
               logoUrl={logoUrl}
             />
           </Sequence>

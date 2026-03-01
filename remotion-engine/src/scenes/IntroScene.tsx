@@ -20,6 +20,7 @@ interface IntroSceneProps {
   isLast: boolean;
   tagline?: string;
   logoUrl?: string;
+  headline?: string;
 }
 
 export const IntroScene: React.FC<IntroSceneProps> = ({
