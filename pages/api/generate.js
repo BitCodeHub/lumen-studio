@@ -1,48 +1,89 @@
-const COMFYUI_URL = process.env.COMFYUI_URL || 'https://spark-comfyui.ngrok.app';
+const COMFYUI_URL = process.env.COMFYUI_URL || 'http://localhost:8188';
 const AUTH = Buffer.from(process.env.COMFYUI_AUTH || 'lumen:studio2026').toString('base64');
 
-// Simple SDXL workflow
-function buildWorkflow(prompt) {
+// Detect if prompt needs photorealistic treatment
+function isPhotorealistic(prompt) {
+  const keywords = ['photo', 'portrait', 'person', 'woman', 'man', 'girl', 'boy', 
+    'fashion', 'model', 'realistic', 'photography', 'cinematic', 'face', 
+    'human', 'people', 'professional', 'studio', 'headshot', 'influencer'];
+  const lower = prompt.toLowerCase();
+  return keywords.some(k => lower.includes(k));
+}
+
+// Juggernaut XL workflow for photorealistic images (OpenAI quality)
+function buildPhotorealisticWorkflow(prompt) {
+  const enhancedPrompt = `${prompt}, masterpiece, ultra high resolution, photorealistic, RAW photo, 8k uhd, dslr, professional photography, cinematic lighting, 85mm lens, shallow depth of field, natural skin texture, detailed skin pores, studio lighting, sharp focus`;
+  const negativePrompt = `ugly, blurry, low quality, deformed, disfigured, bad anatomy, bad hands, bad fingers, extra fingers, missing fingers, extra limbs, mutation, watermark, text, signature, jpeg artifacts, poorly drawn, cartoon, anime, illustration, painting, drawing, cgi, 3d render`;
+  
   return {
-    "3": {
-      "inputs": {
-        "seed": Math.floor(Math.random() * 1000000000),
-        "steps": 25,
-        "cfg": 7,
-        "sampler_name": "euler",
-        "scheduler": "normal",
-        "denoise": 1,
-        "model": ["4", 0],
-        "positive": ["6", 0],
-        "negative": ["7", 0],
-        "latent_image": ["5", 0]
-      },
-      "class_type": "KSampler"
-    },
-    "4": {
-      "inputs": { "ckpt_name": "sd_xl_base_1.0.safetensors" },
-      "class_type": "CheckpointLoaderSimple"
-    },
-    "5": {
-      "inputs": { "width": 1024, "height": 1024, "batch_size": 1 },
-      "class_type": "EmptyLatentImage"
-    },
-    "6": {
-      "inputs": { "text": prompt, "clip": ["4", 1] },
-      "class_type": "CLIPTextEncode"
-    },
-    "7": {
-      "inputs": { "text": "ugly, blurry, low quality, deformed", "clip": ["4", 1] },
-      "class_type": "CLIPTextEncode"
-    },
-    "8": {
-      "inputs": { "samples": ["3", 0], "vae": ["4", 2] },
-      "class_type": "VAEDecode"
-    },
-    "9": {
-      "inputs": { "filename_prefix": "lumen_studio", "images": ["8", 0] },
-      "class_type": "SaveImage"
-    }
+    "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
+    "2": { "inputs": { "width": 1024, "height": 1344, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
+    "3": { "inputs": { "text": enhancedPrompt, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "4": { "inputs": { "text": negativePrompt, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { 
+      "seed": Math.floor(Math.random() * 1e9), 
+      "steps": 35, 
+      "cfg": 7, 
+      "sampler_name": "dpmpp_2m_sde", 
+      "scheduler": "karras", 
+      "denoise": 1, 
+      "model": ["1", 0], 
+      "positive": ["3", 0], 
+      "negative": ["4", 0], 
+      "latent_image": ["2", 0] 
+    }, "class_type": "KSampler" },
+    "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
+    "7": { "inputs": { "filename_prefix": "photo", "images": ["6", 0] }, "class_type": "SaveImage" }
+  };
+}
+
+// FLUX.1-dev workflow for general high-quality images
+function buildFLUXWorkflow(prompt) {
+  const enhancedPrompt = `${prompt}, highly detailed, professional quality, sharp focus, 8k`;
+  
+  return {
+    "1": { "inputs": { "ckpt_name": "flux1-dev.safetensors" }, "class_type": "CheckpointLoaderSimple" },
+    "2": { "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
+    "3": { "inputs": { "text": enhancedPrompt, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "4": { "inputs": { "text": "ugly, blurry, low quality, deformed, watermark", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { 
+      "seed": Math.floor(Math.random() * 1e9), 
+      "steps": 28, 
+      "cfg": 3.5, 
+      "sampler_name": "euler", 
+      "scheduler": "simple", 
+      "denoise": 1, 
+      "model": ["1", 0], 
+      "positive": ["3", 0], 
+      "negative": ["4", 0], 
+      "latent_image": ["2", 0] 
+    }, "class_type": "KSampler" },
+    "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
+    "7": { "inputs": { "filename_prefix": "flux", "images": ["6", 0] }, "class_type": "SaveImage" }
+  };
+}
+
+// SDXL workflow for fast general images
+function buildSDXLWorkflow(prompt) {
+  return {
+    "1": { "inputs": { "ckpt_name": "sd_xl_base_1.0.safetensors" }, "class_type": "CheckpointLoaderSimple" },
+    "2": { "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
+    "3": { "inputs": { "text": prompt + ", high quality, detailed", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "4": { "inputs": { "text": "ugly, blurry, low quality, deformed", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { 
+      "seed": Math.floor(Math.random() * 1e9), 
+      "steps": 25, 
+      "cfg": 7, 
+      "sampler_name": "euler", 
+      "scheduler": "normal", 
+      "denoise": 1, 
+      "model": ["1", 0], 
+      "positive": ["3", 0], 
+      "negative": ["4", 0], 
+      "latent_image": ["2", 0] 
+    }, "class_type": "KSampler" },
+    "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
+    "7": { "inputs": { "filename_prefix": "sdxl", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
 }
 
@@ -51,14 +92,36 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { prompt } = req.body;
+  const { prompt, model } = req.body;
 
   if (!prompt) {
     return res.status(400).json({ error: 'Prompt required' });
   }
 
   try {
-    const workflow = buildWorkflow(prompt);
+    let workflow;
+    let selectedModel;
+
+    // Model selection logic
+    if (model === 'juggernaut' || model === 'photo' || model === 'photorealistic') {
+      workflow = buildPhotorealisticWorkflow(prompt);
+      selectedModel = 'Juggernaut XL v9';
+    } else if (model === 'flux' || model === 'flux-dev') {
+      workflow = buildFLUXWorkflow(prompt);
+      selectedModel = 'FLUX.1-dev';
+    } else if (model === 'sdxl' || model === 'fast') {
+      workflow = buildSDXLWorkflow(prompt);
+      selectedModel = 'SDXL Base';
+    } else {
+      // Auto-detect: photorealistic content uses Juggernaut, else FLUX
+      if (isPhotorealistic(prompt)) {
+        workflow = buildPhotorealisticWorkflow(prompt);
+        selectedModel = 'Juggernaut XL v9';
+      } else {
+        workflow = buildFLUXWorkflow(prompt);
+        selectedModel = 'FLUX.1-dev';
+      }
+    }
     
     const response = await fetch(COMFYUI_URL + '/prompt', {
       method: 'POST',
@@ -79,7 +142,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       status: 'generating',
       prompt_id: data.prompt_id,
-      message: 'Creating your image...'
+      model: selectedModel,
+      message: `Creating your image with ${selectedModel}...`
     });
 
   } catch (error) {
