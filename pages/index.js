@@ -1,54 +1,46 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import Head from 'next/head';
 
 const TEMPLATES = {
   image: [
-    { id: 'logo', name: 'Logo Design', prompt: 'Create a professional logo for' },
-    { id: 'product', name: 'Product Shot', prompt: 'Product photography of' },
-    { id: 'portrait', name: 'AI Portrait', prompt: 'Professional portrait photo of' },
-    { id: 'landscape', name: 'Landscape', prompt: 'Beautiful landscape of' },
-    { id: 'abstract', name: 'Abstract Art', prompt: 'Abstract artistic representation of' },
+    { name: 'Logo Design', prompt: 'Professional modern logo for' },
+    { name: 'Product Shot', prompt: 'Professional product photography of' },
+    { name: 'Portrait', prompt: 'Professional portrait photo of' },
+    { name: 'Landscape', prompt: 'Beautiful cinematic landscape of' },
+    { name: 'Abstract', prompt: 'Abstract artistic representation of' },
   ],
   video: [
-    { id: 'product_ad', name: 'Product Ad (30s)', prompt: 'Create 30-second product ad for' },
-    { id: 'explainer', name: 'Explainer (60s)', prompt: 'Create 60-second explainer video about' },
-    { id: 'trailer', name: 'Movie Trailer', prompt: 'Create movie trailer style video for' },
-    { id: 'social', name: 'Social Reel', prompt: 'Create TikTok/Instagram reel about' },
-    { id: 'anime', name: 'Anime Style', prompt: 'Create anime style video of' },
+    { name: 'Product Ad', prompt: 'Create 30-second Apple-style ad for' },
+    { name: 'Explainer', prompt: 'Create 60-second explainer video about' },
+    { name: 'Trailer', prompt: 'Create Hollywood movie trailer for' },
+    { name: 'Social Reel', prompt: 'Create TikTok viral reel about' },
   ],
   photo: [
-    { id: 'retouch', name: 'Pro Retouch', prompt: 'Professional magazine retouch' },
-    { id: 'restore', name: 'Photo Restore', prompt: 'Restore and enhance this old photo' },
-    { id: 'background', name: 'Change Background', prompt: 'Change background to' },
-    { id: 'upscale', name: 'Upscale 4x', prompt: 'Upscale to 4K resolution' },
-    { id: 'style', name: 'Style Transfer', prompt: 'Convert to oil painting style' },
+    { name: 'Retouch', prompt: 'Professional magazine quality retouch' },
+    { name: 'Restore', prompt: 'Restore and enhance this photo' },
+    { name: 'Background', prompt: 'Change background to' },
+    { name: 'Upscale', prompt: 'Upscale to 4K HD quality' },
   ],
   meme: [
-    { id: 'drake', name: 'Drake', prompt: 'Drake meme:' },
-    { id: 'brain', name: 'Expanding Brain', prompt: 'Expanding brain meme:' },
-    { id: 'distracted', name: 'Distracted BF', prompt: 'Distracted boyfriend meme:' },
-    { id: 'stonks', name: 'Stonks', prompt: 'Stonks meme:' },
-    { id: 'fine', name: 'This Is Fine', prompt: 'This is fine meme:' },
+    { name: 'Drake', prompt: 'Drake meme format:' },
+    { name: 'Expanding Brain', prompt: 'Expanding brain meme:' },
+    { name: 'Distracted BF', prompt: 'Distracted boyfriend meme:' },
+    { name: 'This Is Fine', prompt: 'This is fine meme:' },
   ],
 };
 
 export default function Home() {
   const [messages, setMessages] = useState([
-    { 
-      role: 'assistant', 
-      content: '🎨 Welcome to Lumen Studio!\n\nThis web app is connected to your DGX Spark AI supercomputer.\n\n⚡ For instant generation, use WhatsApp:\n"Elim, create [your prompt]"\n\nOr browse templates below to copy prompts.' 
-    }
+    { role: 'assistant', content: '🎨 Welcome to Lumen Studio!\n\nType what you want to create and I will generate it using your DGX Spark GPU.\n\nOr select a template below to get started.' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('image');
-  const fileRef = useRef(null);
 
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || loading) return;
     
-    const userMsg = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages(prev => [...prev, { role: 'user', content: input }]);
     const currentInput = input;
     setInput('');
     setLoading(true);
@@ -62,244 +54,115 @@ export default function Home() {
       
       const data = await res.json();
       
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: `📋 Prompt ready!\n\n"${currentInput}"\n\n⚡ **Send via WhatsApp for instant generation:**\nElim, ${currentInput}\n\n🔗 Or open ComfyUI directly:\nhttp://100.79.93.27:8188`,
-      }]);
+      if (data.status === 'generating') {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: \`✅ \${data.message}\n\n⏳ Processing on DGX Spark GPU...\nGeneration takes ~22 seconds.\n\n🔗 View results: \${data.check_at}\`
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: \`❌ Error: \${data.message}\n\n\${data.hint || ''}\`
+        }]);
+      }
     } catch (error) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `📋 Prompt copied!\n\n⚡ Send to WhatsApp:\n"Elim, ${currentInput}"`,
+        content: \`❌ Connection error. Please try again.\`
       }]);
     }
     
     setLoading(false);
   };
 
-  const useTemplate = (template) => {
-    setInput(template.prompt + ' ');
-  };
-
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-  };
-
   return (
     <div className="container">
       <Head>
         <title>Lumen Studio - AI Creative Platform</title>
-        <meta name="description" content="Generate images, videos, edit photos with AI" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
       <header>
         <h1>🎨 Lumen Studio</h1>
         <p>AI-Powered Creative Platform</p>
-        <div className="status">
-          <span className="dot green"></span> DGX Spark Connected (via WhatsApp)
-        </div>
+        <span className="badge">⚡ DGX Spark Connected</span>
       </header>
 
       <main>
-        <div className="chat-container">
+        <div className="chat">
           <div className="messages">
-            {messages.map((msg, i) => (
-              <div key={i} className={`message ${msg.role}`}>
-                <pre>{msg.content}</pre>
+            {messages.map((m, i) => (
+              <div key={i} className={\`msg \${m.role}\`}>
+                <pre>{m.content}</pre>
               </div>
             ))}
-            {loading && <div className="message assistant loading">⏳ Processing...</div>}
+            {loading && <div className="msg assistant">⏳ Sending to DGX Spark...</div>}
           </div>
           
-          <div className="input-area">
+          <div className="input-row">
             <input
-              type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+              onChange={e => setInput(e.target.value)}
+              onKeyPress={e => e.key === 'Enter' && sendMessage()}
               placeholder="Describe what you want to create..."
+              disabled={loading}
             />
-            <button onClick={sendMessage} disabled={loading}>Send</button>
+            <button onClick={sendMessage} disabled={loading}>
+              {loading ? '...' : 'Generate'}
+            </button>
           </div>
         </div>
 
         <div className="templates">
-          <h2>📚 Template Gallery</h2>
-          <p className="hint">Click a template to start, then customize and send</p>
-          
           <div className="tabs">
-            {['image', 'video', 'photo', 'meme'].map(tab => (
-              <button
-                key={tab}
-                className={activeTab === tab ? 'active' : ''}
-                onClick={() => setActiveTab(tab)}
-              >
-                {tab === 'image' && '🖼️ Images'}
-                {tab === 'video' && '🎬 Video'}
-                {tab === 'photo' && '📷 Photo Edit'}
-                {tab === 'meme' && '😂 Memes'}
+            {Object.keys(TEMPLATES).map(t => (
+              <button key={t} className={activeTab === t ? 'active' : ''} onClick={() => setActiveTab(t)}>
+                {t === 'image' ? '🖼️' : t === 'video' ? '🎬' : t === 'photo' ? '📷' : '😂'} {t}
               </button>
             ))}
           </div>
-          
-          <div className="template-grid">
-            {TEMPLATES[activeTab]?.map(t => (
-              <div key={t.id} className="template-card" onClick={() => useTemplate(t)}>
-                <h3>{t.name}</h3>
-                <p>{t.prompt}</p>
+          <div className="grid">
+            {TEMPLATES[activeTab].map((t, i) => (
+              <div key={i} className="card" onClick={() => setInput(t.prompt + ' ')}>
+                <strong>{t.name}</strong>
+                <small>{t.prompt}</small>
               </div>
             ))}
           </div>
         </div>
-
-        <div className="quick-start">
-          <h2>⚡ Quick Start</h2>
-          <p>For instant AI generation, send to WhatsApp:</p>
-          <code>Elim, create a futuristic logo for Lumen AI</code>
-          <p className="small">Your DGX Spark processes requests in ~22 seconds</p>
-        </div>
       </main>
 
-      <footer>
-        <p>Powered by DGX Spark (NVIDIA GB10) • Lumen AI Solutions</p>
-        <p className="small">ComfyUI: http://100.79.93.27:8188 (Tailscale)</p>
-      </footer>
+      <footer>Powered by DGX Spark • Lumen AI</footer>
 
-      <style jsx global>{`
+      <style jsx global>{\`
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { 
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-          color: #fff;
-          min-height: 100vh;
-        }
-        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        body { font-family: system-ui, sans-serif; background: #0f0f1a; color: #fff; min-height: 100vh; }
+        .container { max-width: 800px; margin: 0 auto; padding: 16px; }
         header { text-align: center; padding: 20px 0; }
-        header h1 { font-size: 2rem; margin-bottom: 5px; }
-        header p { color: #888; margin-bottom: 10px; }
-        .status { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.1); padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; }
-        .dot.green { background: #22c55e; }
-        
-        .chat-container {
-          background: rgba(255,255,255,0.05);
-          border-radius: 16px;
-          padding: 15px;
-          margin-bottom: 20px;
-        }
-        .messages {
-          height: 200px;
-          overflow-y: auto;
-          margin-bottom: 10px;
-        }
-        .message {
-          padding: 10px 14px;
-          border-radius: 12px;
-          margin-bottom: 8px;
-          max-width: 90%;
-        }
-        .message pre { white-space: pre-wrap; font-family: inherit; font-size: 0.9rem; line-height: 1.4; }
-        .message.user {
-          background: #4f46e5;
-          margin-left: auto;
-        }
-        .message.assistant {
-          background: rgba(255,255,255,0.1);
-        }
-        .message.loading { opacity: 0.6; }
-        
-        .input-area {
-          display: flex;
-          gap: 8px;
-        }
-        .input-area input {
-          flex: 1;
-          padding: 12px 14px;
-          border-radius: 8px;
-          border: none;
-          background: rgba(255,255,255,0.1);
-          color: #fff;
-          font-size: 15px;
-        }
-        .input-area button {
-          padding: 12px 20px;
-          border-radius: 8px;
-          border: none;
-          background: #4f46e5;
-          color: #fff;
-          cursor: pointer;
-          font-weight: 500;
-        }
-        .input-area button:hover { background: #4338ca; }
-        .input-area button:disabled { opacity: 0.5; }
-        
-        .templates { margin: 20px 0; }
-        .templates h2 { margin-bottom: 5px; font-size: 1.2rem; }
-        .templates .hint { color: #888; font-size: 0.85rem; margin-bottom: 15px; }
-        .tabs {
-          display: flex;
-          gap: 8px;
-          margin-bottom: 15px;
-          flex-wrap: wrap;
-        }
-        .tabs button {
-          padding: 8px 16px;
-          border-radius: 8px;
-          border: none;
-          background: rgba(255,255,255,0.1);
-          color: #fff;
-          cursor: pointer;
-          font-size: 0.9rem;
-        }
-        .tabs button.active {
-          background: #4f46e5;
-        }
-        
-        .template-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-          gap: 10px;
-        }
-        .template-card {
-          background: rgba(255,255,255,0.05);
-          border-radius: 10px;
-          padding: 14px;
-          cursor: pointer;
-          transition: transform 0.2s, background 0.2s;
-        }
-        .template-card:hover {
-          transform: translateY(-2px);
-          background: rgba(255,255,255,0.1);
-        }
-        .template-card h3 { margin-bottom: 5px; font-size: 0.95rem; }
-        .template-card p { color: #888; font-size: 0.8rem; }
-        
-        .quick-start {
-          background: rgba(79, 70, 229, 0.2);
-          border-radius: 12px;
-          padding: 20px;
-          text-align: center;
-          margin: 20px 0;
-        }
-        .quick-start h2 { margin-bottom: 10px; font-size: 1.1rem; }
-        .quick-start code {
-          display: block;
-          background: rgba(0,0,0,0.3);
-          padding: 12px;
-          border-radius: 8px;
-          margin: 10px 0;
-          font-size: 0.9rem;
-        }
-        .quick-start .small { color: #888; font-size: 0.8rem; }
-        
-        footer {
-          text-align: center;
-          padding: 20px 0;
-          color: #666;
-          font-size: 0.85rem;
-        }
-        footer .small { font-size: 0.75rem; margin-top: 5px; }
-      `}</style>
+        header h1 { font-size: 1.8rem; }
+        header p { color: #888; font-size: 0.9rem; }
+        .badge { display: inline-block; background: #22c55e33; color: #22c55e; padding: 4px 12px; border-radius: 12px; font-size: 0.8rem; margin-top: 8px; }
+        .chat { background: #1a1a2e; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+        .messages { height: 250px; overflow-y: auto; margin-bottom: 12px; }
+        .msg { padding: 10px 14px; border-radius: 10px; margin-bottom: 8px; max-width: 85%; }
+        .msg pre { white-space: pre-wrap; font-family: inherit; font-size: 0.9rem; line-height: 1.4; }
+        .msg.user { background: #4f46e5; margin-left: auto; }
+        .msg.assistant { background: #2a2a3e; }
+        .input-row { display: flex; gap: 8px; }
+        .input-row input { flex: 1; padding: 12px; border-radius: 8px; border: none; background: #2a2a3e; color: #fff; font-size: 15px; }
+        .input-row button { padding: 12px 20px; border-radius: 8px; border: none; background: #4f46e5; color: #fff; cursor: pointer; font-weight: 600; }
+        .input-row button:disabled { opacity: 0.5; }
+        .templates { margin: 16px 0; }
+        .tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+        .tabs button { padding: 8px 14px; border-radius: 8px; border: none; background: #2a2a3e; color: #fff; cursor: pointer; text-transform: capitalize; }
+        .tabs button.active { background: #4f46e5; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+        .card { background: #1a1a2e; padding: 14px; border-radius: 10px; cursor: pointer; transition: 0.2s; }
+        .card:hover { background: #2a2a3e; transform: translateY(-2px); }
+        .card strong { display: block; margin-bottom: 4px; font-size: 0.95rem; }
+        .card small { color: #888; font-size: 0.8rem; }
+        footer { text-align: center; padding: 20px; color: #666; font-size: 0.85rem; }
+      \`}</style>
     </div>
   );
 }

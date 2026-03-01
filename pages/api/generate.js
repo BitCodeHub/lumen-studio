@@ -1,15 +1,13 @@
-import https from 'https';
-import http from 'http';
+const COMFYUI_URL = 'https://spark-comfyui.ngrok.app';
+const AUTH = Buffer.from('lumen:studio2026').toString('base64');
 
-const COMFYUI_URL = process.env.COMFYUI_URL || 'http://100.79.93.27:8188';
-
-// Simple text-to-image workflow for FLUX
+// Simple SDXL workflow
 function buildWorkflow(prompt) {
   return {
     "3": {
       "inputs": {
         "seed": Math.floor(Math.random() * 1000000000),
-        "steps": 20,
+        "steps": 25,
         "cfg": 7,
         "sampler_name": "euler",
         "scheduler": "normal",
@@ -22,7 +20,7 @@ function buildWorkflow(prompt) {
       "class_type": "KSampler"
     },
     "4": {
-      "inputs": { "ckpt_name": "flux1-dev.safetensors" },
+      "inputs": { "ckpt_name": "sd_xl_base_1.0.safetensors" },
       "class_type": "CheckpointLoaderSimple"
     },
     "5": {
@@ -34,7 +32,7 @@ function buildWorkflow(prompt) {
       "class_type": "CLIPTextEncode"
     },
     "7": {
-      "inputs": { "text": "ugly, blurry, low quality", "clip": ["4", 1] },
+      "inputs": { "text": "ugly, blurry, low quality, deformed", "clip": ["4", 1] },
       "class_type": "CLIPTextEncode"
     },
     "8": {
@@ -60,37 +58,38 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Queue the workflow on ComfyUI
     const workflow = buildWorkflow(prompt);
     
-    const response = await fetch(`${COMFYUI_URL}/prompt`, {
+    const response = await fetch(\`\${COMFYUI_URL}/prompt\`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': \`Basic \${AUTH}\`
+      },
       body: JSON.stringify({ prompt: workflow })
     });
 
     if (!response.ok) {
-      throw new Error(`ComfyUI returned ${response.status}`);
+      const text = await response.text();
+      throw new Error(\`ComfyUI error: \${response.status} - \${text}\`);
     }
 
     const data = await response.json();
     
     return res.status(200).json({
-      status: 'queued',
+      status: 'generating',
       prompt_id: data.prompt_id,
-      message: `Generating: "${prompt}"`,
-      note: 'Check ComfyUI at http://100.79.93.27:8188 for results'
+      message: \`🎨 Generating: "\${prompt}"\`,
+      check_at: \`\${COMFYUI_URL}/view?filename=lumen_studio_00001_.png\`,
+      note: 'Image will appear in ComfyUI output folder in ~22 seconds'
     });
 
   } catch (error) {
-    console.error('ComfyUI error:', error);
-    
-    // Return helpful message if ComfyUI not reachable
-    return res.status(200).json({
-      status: 'offline',
-      message: `ComfyUI not reachable from Render. Use WhatsApp instead.`,
-      prompt: prompt,
-      workaround: 'Send to WhatsApp: "Elim, generate: ' + prompt + '"'
+    console.error('Generation error:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: error.message,
+      hint: 'Try refreshing or check if DGX Spark is online'
     });
   }
 }
