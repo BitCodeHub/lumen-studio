@@ -236,8 +236,10 @@ export default async function handler(req, res) {
       ...response,
       status: 'generating',
       sceneJobs: sceneJobs,
-      message: `Generating ${sceneJobs.filter(j => j.status === 'generating').length} scenes. This will take ${response.estimatedTime}.`,
-      note: 'After scenes complete, they will be composed with Remotion into final video'
+      renderEngine: 'remotion',
+      message: `🎬 Generating ${sceneJobs.filter(j => j.status === 'generating').length} scenes for Hollywood-grade ${template.name} ad. This will take ${response.estimatedTime}.`,
+      note: 'After scenes complete, Remotion will compose them with motion graphics, transitions, and professional polish.',
+      nextStep: 'Call /api/ad-compose with sceneJobs to check status and trigger Remotion render'
     });
 
   } catch (error) {

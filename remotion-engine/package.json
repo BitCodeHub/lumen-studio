@@ -1,0 +1,23 @@
+{
+  "name": "lumen-remotion-engine",
+  "version": "1.0.0",
+  "description": "Hollywood-grade video production engine for Lumen Studio",
+  "scripts": {
+    "dev": "npx remotion studio",
+    "build": "npx remotion bundle",
+    "render": "npx remotion render"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.242",
+    "@remotion/bundler": "4.0.242",
+    "@remotion/renderer": "4.0.242",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.242",
+    "lucide-react": "^0.468.0"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.17",
+    "typescript": "5.7.2"
+  }
+}

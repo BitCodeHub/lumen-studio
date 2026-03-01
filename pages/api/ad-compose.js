@@ -1,5 +1,5 @@
-// Ad Video Composition - Combines generated scenes into final video
-// Uses FFmpeg for now (Remotion integration for future)
+// Ad Video Composition - Hollywood-grade video production
+// Uses Remotion for professional motion graphics and transitions
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -159,7 +159,7 @@ export default async function handler(req, res) {
     }
 
     if (compose && response.allComplete) {
-      // Download and compose
+      // Download scene assets
       const outputDir = '/tmp/lumen-studio-compose-' + Date.now();
       await fs.mkdir(outputDir, { recursive: true });
       
@@ -169,30 +169,100 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'No files downloaded' });
       }
 
-      const outputPath = path.join(outputDir, 'final_ad.mp4');
-      const composeResult = await composeWithFFmpeg(downloadedFiles, { outputPath });
+      // Build asset URL map for Remotion
+      const assetUrls = {};
+      downloadedFiles.forEach((file, idx) => {
+        assetUrls[idx + 1] = file.localPath;
+      });
+
+      // Call Remotion render API
+      const { style = 'tech', product = 'Product', tagline = '', duration = 30 } = req.body;
       
-      if (composeResult.success) {
-        // Read the file and return as base64 or URL
-        const videoBuffer = await fs.readFile(outputPath);
-        const base64 = videoBuffer.toString('base64');
+      try {
+        const renderRes = await fetch(new URL('/api/render-video', req.headers.origin || 'http://localhost:3000'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scenes: sceneJobs.map((job, idx) => ({
+              id: idx + 1,
+              type: job.type || 'feature',
+              duration: 5, // Default 5s per scene
+              description: job.description || '',
+            })),
+            style,
+            product,
+            tagline,
+            duration,
+            assetUrls,
+          }),
+        });
+
+        const renderData = await renderRes.json();
+
+        if (renderData.status === 'complete' && renderData.video) {
+          // Cleanup temp files
+          await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
+          
+          return res.status(200).json({
+            ...response,
+            status: 'complete',
+            renderEngine: 'remotion',
+            video: renderData.video,
+            message: '🎬 Hollywood-grade video rendered successfully with Remotion!'
+          });
+        } else {
+          // Fall back to FFmpeg if Remotion fails
+          console.log('Remotion render failed, falling back to FFmpeg:', renderData.error);
+          
+          const outputPath = path.join(outputDir, 'final_ad.mp4');
+          const composeResult = await composeWithFFmpeg(downloadedFiles, { outputPath });
+          
+          if (composeResult.success) {
+            const videoBuffer = await fs.readFile(outputPath);
+            const base64 = videoBuffer.toString('base64');
+            
+            return res.status(200).json({
+              ...response,
+              status: 'complete',
+              renderEngine: 'ffmpeg-fallback',
+              video: {
+                base64: base64,
+                size: videoBuffer.length,
+                format: 'mp4'
+              },
+              message: 'Video composed with FFmpeg (Remotion fallback)'
+            });
+          }
+        }
+      } catch (renderError) {
+        console.error('Remotion render error:', renderError);
         
-        return res.status(200).json({
-          ...response,
-          status: 'complete',
-          video: {
-            base64: base64,
-            size: videoBuffer.length,
-            format: 'mp4'
-          },
-          message: 'Video composed successfully!'
-        });
-      } else {
-        return res.status(500).json({
-          ...response,
-          error: 'Composition failed: ' + composeResult.error
-        });
+        // Fall back to FFmpeg
+        const outputPath = path.join(outputDir, 'final_ad.mp4');
+        const composeResult = await composeWithFFmpeg(downloadedFiles, { outputPath });
+        
+        if (composeResult.success) {
+          const videoBuffer = await fs.readFile(outputPath);
+          const base64 = videoBuffer.toString('base64');
+          
+          return res.status(200).json({
+            ...response,
+            status: 'complete',
+            renderEngine: 'ffmpeg-fallback',
+            video: {
+              base64: base64,
+              size: videoBuffer.length,
+              format: 'mp4'
+            },
+            message: 'Video composed with FFmpeg'
+          });
+        }
       }
+      
+      return res.status(500).json({
+        ...response,
+        error: 'Composition failed'
+      });
     }
 
     return res.status(200).json({
