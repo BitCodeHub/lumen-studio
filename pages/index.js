@@ -83,19 +83,19 @@ export default function Home() {
           // Instant meme from Imgflip
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: \`😂 \${data.template} meme generated!\n\n\`,
+            content: '😂 ' + data.template + ' meme generated!\n\n',
             image: data.url
           }]);
         } else if (data.status === 'generating') {
           // AI-generated meme (takes ~22 sec)
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: \`🎨 \${data.message}\n\n⏳ Processing on DGX Spark GPU...\n\n🔗 View results: \${data.check_at}\`
+            content: '🎨 ' + data.message + '\n\n⏳ Processing on DGX Spark GPU...\n\n🔗 View results: ' + data.check_at
           }]);
         } else {
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: \`❌ Error: \${data.message || data.error}\n\n\${data.hint || ''}\`
+            content: '❌ Error: ' + (data.message || data.error) + '\n\n' + (data.hint || '')
           }]);
         }
       } else {
@@ -110,19 +110,19 @@ export default function Home() {
         if (data.status === 'generating') {
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: \`✅ \${data.message}\n\n⏳ Processing on DGX Spark GPU...\nGeneration takes ~22 seconds.\n\n🔗 View results: \${data.check_at}\`
+            content: '✅ ' + data.message + '\n\n⏳ Processing on DGX Spark GPU...\nGeneration takes ~22 seconds.\n\n🔗 View results: ' + data.check_at
           }]);
         } else {
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: \`❌ Error: \${data.message}\n\n\${data.hint || ''}\`
+            content: '❌ Error: ' + data.message + '\n\n' + (data.hint || '')
           }]);
         }
       }
     } catch (error) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: \`❌ Connection error. Please try again.\`
+        content: '❌ Connection error. Please try again.'
       }]);
     }
     
@@ -146,7 +146,7 @@ export default function Home() {
         <div className="chat">
           <div className="messages">
             {messages.map((m, i) => (
-              <div key={i} className={\`msg \${m.role}\`}>
+              <div key={i} className={'msg ' + m.role}>
                 <pre>{m.content}</pre>
                 {m.image && (
                   <a href={m.image} target="_blank" rel="noopener noreferrer">
@@ -193,7 +193,7 @@ export default function Home() {
 
       <footer>Powered by DGX Spark • Lumen AI</footer>
 
-      <style jsx global>{\`
+      <style jsx global>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: system-ui, sans-serif; background: #0f0f1a; color: #fff; min-height: 100vh; }
         .container { max-width: 800px; margin: 0 auto; padding: 16px; }
@@ -223,7 +223,7 @@ export default function Home() {
         .card strong { display: block; margin-bottom: 4px; font-size: 0.95rem; }
         .card small { color: #888; font-size: 0.8rem; }
         footer { text-align: center; padding: 20px; color: #666; font-size: 0.85rem; }
-      \`}</style>
+      `}</style>
     </div>
   );
 }

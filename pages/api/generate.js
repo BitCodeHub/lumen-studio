@@ -60,18 +60,18 @@ export default async function handler(req, res) {
   try {
     const workflow = buildWorkflow(prompt);
     
-    const response = await fetch(\`\${COMFYUI_URL}/prompt\`, {
+    const response = await fetch(COMFYUI_URL + '/prompt', {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Authorization': \`Basic \${AUTH}\`
+        'Authorization': 'Basic ' + AUTH
       },
       body: JSON.stringify({ prompt: workflow })
     });
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(\`ComfyUI error: \${response.status} - \${text}\`);
+      throw new Error('ComfyUI error: ' + response.status + ' - ' + text);
     }
 
     const data = await response.json();
@@ -79,8 +79,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       status: 'generating',
       prompt_id: data.prompt_id,
-      message: \`🎨 Generating: "\${prompt}"\`,
-      check_at: \`\${COMFYUI_URL}/view?filename=lumen_studio_00001_.png\`,
+      message: '🎨 Generating: "' + prompt + '"',
+      check_at: COMFYUI_URL + '/view?filename=lumen_studio_00001_.png',
       note: 'Image will appear in ComfyUI output folder in ~22 seconds'
     });
 
