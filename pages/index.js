@@ -306,6 +306,17 @@ export default function Home() {
         </div>
       )}
 
+      {/* Mobile Header */}
+      <header className="mobile-header">
+        <div className="logo">
+          <span className="logo-icon">L</span>
+          <div>
+            <span className="logo-title">Lumen Creative Studio</span>
+            <span className="logo-subtitle">Luna Labs</span>
+          </div>
+        </div>
+      </header>
+
       {/* Sidebar */}
       <aside className="sidebar">
         <header className="sidebar-header">
@@ -531,7 +542,27 @@ export default function Home() {
         .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         
         @media (max-width: 900px) { .capabilities-grid { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 768px) { .sidebar { display: none; } .welcome { padding: 20px; } .capabilities-grid { grid-template-columns: 1fr; } .chat-area, .input-area { padding: 16px 20px; } }
+        
+        .mobile-header { display: none; }
+        
+        @media (max-width: 768px) { 
+          .sidebar { display: none; } 
+          .mobile-header { display: flex; align-items: center; padding: 12px 16px; background: #111; border-bottom: 1px solid #1a1a1a; position: sticky; top: 0; z-index: 50; }
+          .app { flex-direction: column; }
+          .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+          .welcome { padding: 20px; overflow-y: auto; }
+          .welcome-content h1 { font-size: 24px; margin-bottom: 8px; }
+          .welcome-subtitle { font-size: 14px; margin-bottom: 24px; }
+          .capabilities-grid { grid-template-columns: 1fr; gap: 8px; margin-bottom: 20px; } 
+          .capability-card { padding: 12px; }
+          .cap-icon { font-size: 20px; }
+          .upload-zone { margin-top: 20px; padding: 24px; }
+          .chat-area { padding: 16px; flex: 1; overflow-y: auto; }
+          .input-area { padding: 12px 16px; position: sticky; bottom: 0; background: #0d0d0d; }
+          .input-box { padding: 2px; }
+          .upload-btn, .send-btn { width: 40px; height: 40px; }
+          .input-box input { padding: 10px 8px; font-size: 14px; }
+        }
       `}</style>
     </div>
   );
