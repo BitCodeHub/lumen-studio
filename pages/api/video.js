@@ -1,32 +1,91 @@
-// Video generation endpoint - Text to Video & Image to Video using AnimateDiff
+// Video generation endpoint - Text to Video & Image to Video using AnimateDiff Evolved
 const COMFYUI_URL = process.env.COMFYUI_URL || 'http://localhost:8188';
 const AUTH = Buffer.from(process.env.COMFYUI_AUTH || 'lumen:studio2026').toString('base64');
 
-// Simple text-to-video using SD 1.5 + AnimateDiff (most compatible)
+// SD 1.5 + AnimateDiff Evolved workflow
 const buildTextToVideoWorkflow = (prompt, frames = 16) => ({
+  // Load checkpoint
   "1": { "inputs": { "ckpt_name": "SD1.5/v1-5-pruned-emaonly.safetensors" }, "class_type": "CheckpointLoaderSimple" },
+  // Load AnimateDiff motion model
   "2": { "inputs": { "model_name": "mm_sd_v15_v2.ckpt" }, "class_type": "ADE_LoadAnimateDiffModel" },
+  // Apply AnimateDiff to model
   "3": { "inputs": { "motion_model": ["2", 0], "start_percent": 0, "end_percent": 1, "model": ["1", 0] }, "class_type": "ADE_ApplyAnimateDiffModelSimple" },
-  "4": { "inputs": { "text": prompt + ", smooth motion, high quality, detailed", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-  "5": { "inputs": { "text": "ugly, blurry, static, low quality, watermark, deformed", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-  "6": { "inputs": { "width": 512, "height": 512, "batch_size": frames }, "class_type": "EmptyLatentImage" },
-  "7": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 20, "cfg": 7.5, "sampler_name": "euler", "scheduler": "normal", "denoise": 1, "model": ["3", 0], "positive": ["4", 0], "negative": ["5", 0], "latent_image": ["6", 0] }, "class_type": "KSampler" },
-  "8": { "inputs": { "samples": ["7", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
-  "9": { "inputs": { "filename_prefix": "video", "fps": 12, "lossless": false, "quality": 85, "method": "default", "images": ["8", 0] }, "class_type": "SaveAnimatedWEBP" }
+  // Convert M_MODELS to MODEL using evolved sampling
+  "4": { "inputs": { "model": ["3", 0], "beta_schedule": "sqrt_linear (AnimateDiff)" }, "class_type": "ADE_UseEvolvedSampling" },
+  // Positive prompt
+  "5": { "inputs": { "text": prompt + ", smooth motion, high quality, detailed, cinematic", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+  // Negative prompt
+  "6": { "inputs": { "text": "ugly, blurry, static, low quality, watermark, deformed, jpeg artifacts", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+  // Empty latent for frames
+  "7": { "inputs": { "width": 512, "height": 512, "batch_size": frames }, "class_type": "EmptyLatentImage" },
+  // KSampler
+  "8": { "inputs": { 
+    "seed": Math.floor(Math.random() * 1e9), 
+    "steps": 20, 
+    "cfg": 7.5, 
+    "sampler_name": "euler_ancestral", 
+    "scheduler": "normal", 
+    "denoise": 1, 
+    "model": ["4", 0], 
+    "positive": ["5", 0], 
+    "negative": ["6", 0], 
+    "latent_image": ["7", 0] 
+  }, "class_type": "KSampler" },
+  // VAE Decode
+  "9": { "inputs": { "samples": ["8", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
+  // Save as animated WEBP
+  "10": { "inputs": { 
+    "filename_prefix": "video", 
+    "fps": 12, 
+    "lossless": false, 
+    "quality": 85, 
+    "method": "default", 
+    "images": ["9", 0] 
+  }, "class_type": "SaveAnimatedWEBP" }
 });
 
-// Image-to-video using SD 1.5 + AnimateDiff
+// Image-to-video using SD 1.5 + AnimateDiff Evolved
 const buildImageToVideoWorkflow = (filename, prompt, frames = 16) => ({
+  // Load source image
   "1": { "inputs": { "image": filename, "upload": "image" }, "class_type": "LoadImage" },
+  // Load checkpoint
   "2": { "inputs": { "ckpt_name": "SD1.5/v1-5-pruned-emaonly.safetensors" }, "class_type": "CheckpointLoaderSimple" },
+  // Load AnimateDiff motion model
   "3": { "inputs": { "model_name": "mm_sd_v15_v2.ckpt" }, "class_type": "ADE_LoadAnimateDiffModel" },
+  // Apply AnimateDiff
   "4": { "inputs": { "motion_model": ["3", 0], "start_percent": 0, "end_percent": 1, "model": ["2", 0] }, "class_type": "ADE_ApplyAnimateDiffModelSimple" },
-  "5": { "inputs": { "pixels": ["1", 0], "vae": ["2", 2] }, "class_type": "VAEEncode" },
-  "6": { "inputs": { "text": prompt || "smooth natural motion, high quality animation", "clip": ["2", 1] }, "class_type": "CLIPTextEncode" },
-  "7": { "inputs": { "text": "ugly, blurry, static, low quality, watermark", "clip": ["2", 1] }, "class_type": "CLIPTextEncode" },
-  "8": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 20, "cfg": 7, "sampler_name": "euler", "scheduler": "normal", "denoise": 0.65, "model": ["4", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["5", 0] }, "class_type": "KSampler" },
-  "9": { "inputs": { "samples": ["8", 0], "vae": ["2", 2] }, "class_type": "VAEDecode" },
-  "10": { "inputs": { "filename_prefix": "animate", "fps": 12, "lossless": false, "quality": 85, "method": "default", "images": ["9", 0] }, "class_type": "SaveAnimatedWEBP" }
+  // Convert M_MODELS to MODEL
+  "5": { "inputs": { "model": ["4", 0], "beta_schedule": "sqrt_linear (AnimateDiff)" }, "class_type": "ADE_UseEvolvedSampling" },
+  // Encode image to latent
+  "6": { "inputs": { "pixels": ["1", 0], "vae": ["2", 2] }, "class_type": "VAEEncode" },
+  // Positive prompt
+  "7": { "inputs": { "text": prompt || "smooth natural motion, high quality animation", "clip": ["2", 1] }, "class_type": "CLIPTextEncode" },
+  // Negative prompt
+  "8": { "inputs": { "text": "ugly, blurry, static, low quality, watermark", "clip": ["2", 1] }, "class_type": "CLIPTextEncode" },
+  // KSampler with img2img denoise
+  "9": { "inputs": { 
+    "seed": Math.floor(Math.random() * 1e9), 
+    "steps": 20, 
+    "cfg": 7, 
+    "sampler_name": "euler_ancestral", 
+    "scheduler": "normal", 
+    "denoise": 0.65, 
+    "model": ["5", 0], 
+    "positive": ["7", 0], 
+    "negative": ["8", 0], 
+    "latent_image": ["6", 0] 
+  }, "class_type": "KSampler" },
+  // VAE Decode
+  "10": { "inputs": { "samples": ["9", 0], "vae": ["2", 2] }, "class_type": "VAEDecode" },
+  // Save as animated WEBP
+  "11": { "inputs": { 
+    "filename_prefix": "animate", 
+    "fps": 12, 
+    "lossless": false, 
+    "quality": 85, 
+    "method": "default", 
+    "images": ["10", 0] 
+  }, "class_type": "SaveAnimatedWEBP" }
 });
 
 // Parse duration from prompt
@@ -35,7 +94,7 @@ function parseDuration(prompt) {
   const match = lower.match(/(\d+)\s*(second|sec|s)/);
   if (match) {
     const seconds = parseInt(match[1]);
-    return Math.min(Math.max(seconds * 12, 12), 32); // 12fps
+    return Math.min(Math.max(seconds * 12, 12), 32);
   }
   return 16;
 }
