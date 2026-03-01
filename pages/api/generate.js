@@ -49,19 +49,19 @@ function detectCategory(prompt) {
   return 'general';
 }
 
-// Universal photorealistic negative prompt
-const PHOTO_NEGATIVE = `ugly, blurry, low quality, deformed, disfigured, bad anatomy, bad proportions, watermark, text, signature, jpeg artifacts, poorly drawn, cartoon, anime, illustration, painting, drawing, cgi, 3d render, artificial, fake, plastic, oversaturated, amateur, grainy, noisy`;
+// MAXIMUM PHOTOREALISM - Universal anti-AI negative prompt
+const PHOTO_NEGATIVE = `ugly, blurry, low quality, deformed, disfigured, bad anatomy, bad proportions, watermark, text, signature, jpeg artifacts, poorly drawn, cartoon, anime, illustration, painting, drawing, cgi, 3d render, artificial, fake, plastic, oversaturated, amateur, grainy, noisy, AI generated, airbrushed, smooth skin, digital art, unrealistic, overprocessed, HDR, hyper saturated, video game, unnatural colors, synthetic, computer generated, midjourney, dall-e, stable diffusion artifacts`;
 
 // Portrait/People workflow (Juggernaut XL - best for humans)
 function buildPortraitWorkflow(prompt) {
-  const enhanced = `${prompt}, masterpiece, ultra high resolution, photorealistic, RAW photo, 8k uhd, shot on Sony A7R IV, 85mm f/1.4 GM lens, professional photography, cinematic lighting, shallow depth of field, natural skin texture, detailed skin pores, catch lights in eyes, studio quality, sharp focus, professional retouching`;
+  const enhanced = `${prompt}, masterpiece, ultra high resolution, photorealistic, RAW photo, 8k uhd, shot on Sony A7R IV with 85mm f/1.4 GM lens, professional photography, cinematic lighting, shallow depth of field, natural skin texture with visible pores, imperfect skin with natural blemishes, catch lights in eyes, studio quality, sharp focus, professional color grading, film grain, real photograph taken by professional photographer, Vogue magazine quality, natural makeup, realistic hair strands`;
   
   return {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1024, "height": 1344, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
     "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", bad hands, bad fingers, extra fingers, missing fingers, extra limbs, mutation", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 40, "cfg": 6, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
+    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", bad hands, bad fingers, extra fingers, missing fingers, extra limbs, mutation, wax figure, mannequin, doll, porcelain skin", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 45, "cfg": 4.5, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "portrait", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
@@ -69,14 +69,14 @@ function buildPortraitWorkflow(prompt) {
 
 // Food Photography workflow
 function buildFoodWorkflow(prompt) {
-  const enhanced = `${prompt}, professional food photography, shot on Canon EOS R5, 100mm macro lens, f/2.8 aperture, natural window lighting, soft diffused shadows, steam rising naturally, shallow depth of field, food magazine cover quality, michelin star presentation, appetizing, mouth-watering, high-end restaurant styling, RAW photo, 8k uhd, photorealistic, natural colors, realistic textures, editorial quality`;
+  const enhanced = `${prompt}, professional food photography, shot on Canon EOS R5 with 100mm macro lens at f/2.8, natural window lighting with soft diffused shadows, steam rising naturally, shallow depth of field, food magazine cover quality, michelin star presentation, appetizing, mouth-watering, high-end restaurant styling, RAW photo, 8k uhd, photorealistic, natural colors, realistic textures, editorial quality, Bon Appetit magazine style, real photograph, natural imperfections in food`;
   
   return {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
     "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", unappetizing, raw meat, rotten, spoiled, artificial colors, neon lighting", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 35, "cfg": 5, "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
+    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", unappetizing, raw meat, rotten, spoiled, artificial colors, neon lighting, stock photo, clip art", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 45, "cfg": 4, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "food", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
@@ -84,14 +84,14 @@ function buildFoodWorkflow(prompt) {
 
 // Product Photography workflow
 function buildProductWorkflow(prompt) {
-  const enhanced = `${prompt}, professional product photography, shot on Phase One IQ4, 120mm macro lens, f/8 aperture, studio lighting setup, softbox lighting, clean white background, commercial advertising quality, sharp focus throughout, product catalog style, RAW photo, 8k uhd, photorealistic, perfect reflections, luxury presentation, high-end advertising`;
+  const enhanced = `${prompt}, professional product photography, shot on Phase One IQ4 150MP with 120mm macro lens at f/8, studio lighting setup with softboxes, clean gradient background, commercial advertising quality, sharp focus throughout, product catalog style, RAW photo, 8k uhd, photorealistic, perfect reflections, luxury presentation, high-end advertising, real photograph for e-commerce, natural material textures`;
   
   return {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
     "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", dirty, damaged, scratched, fingerprints, dust", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 35, "cfg": 6, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
+    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", dirty, damaged, scratched, fingerprints, dust, cheap looking, toy", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 45, "cfg": 4.5, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "product", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
@@ -99,14 +99,14 @@ function buildProductWorkflow(prompt) {
 
 // Landscape Photography workflow
 function buildLandscapeWorkflow(prompt) {
-  const enhanced = `${prompt}, professional landscape photography, shot on Nikon Z9, 24-70mm f/2.8 lens, golden hour lighting, dramatic sky, National Geographic quality, ultra wide dynamic range, RAW photo, 8k uhd, photorealistic, stunning composition, rule of thirds, leading lines, epic vista, award-winning nature photography`;
+  const enhanced = `${prompt}, professional landscape photography, shot on Nikon Z9 with 24-70mm f/2.8 lens, golden hour lighting, dramatic sky with natural cloud formations, National Geographic quality, ultra wide dynamic range, RAW photo, 8k uhd, photorealistic, stunning composition using rule of thirds, leading lines, epic vista, award-winning nature photography, real photograph, subtle film grain, natural atmospheric haze`;
   
   return {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1344, "height": 768, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
     "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", flat lighting, boring composition, hdr overprocessed", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 35, "cfg": 6, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
+    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", flat lighting, boring composition, overprocessed HDR, neon sky, fantasy landscape", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 45, "cfg": 4.5, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "landscape", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
@@ -114,14 +114,14 @@ function buildLandscapeWorkflow(prompt) {
 
 // Architecture/Interior Photography workflow
 function buildArchitectureWorkflow(prompt) {
-  const enhanced = `${prompt}, professional architectural photography, shot on Canon 5DS R, 24mm tilt-shift lens, perfectly straight verticals, interior design magazine quality, natural daylight through windows, ambient lighting, clean modern aesthetic, RAW photo, 8k uhd, photorealistic, Architectural Digest style, luxury real estate photography`;
+  const enhanced = `${prompt}, professional architectural photography, shot on Canon 5DS R with 24mm tilt-shift lens, perfectly straight verticals, interior design magazine quality, natural daylight through windows combined with ambient lighting, clean modern aesthetic, RAW photo, 8k uhd, photorealistic, Architectural Digest style, luxury real estate photography, real photograph, natural material textures, realistic reflections`;
   
   return {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1344, "height": 896, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
     "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", tilted, crooked, distorted perspective, cluttered, messy", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 35, "cfg": 6, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
+    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", tilted, crooked, distorted perspective, cluttered, messy, fisheye distortion", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 45, "cfg": 4.5, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "architecture", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
@@ -129,14 +129,14 @@ function buildArchitectureWorkflow(prompt) {
 
 // Car/Automotive Photography workflow
 function buildCarWorkflow(prompt) {
-  const enhanced = `${prompt}, professional automotive photography, shot on Hasselblad H6D, dramatic studio lighting, reflections on bodywork, showroom quality, car magazine cover, RAW photo, 8k uhd, photorealistic, perfect paint finish, dynamic angle, motion blur background optional, luxury automotive advertising`;
+  const enhanced = `${prompt}, professional automotive photography, shot on Hasselblad H6D-100c with 80mm lens, dramatic studio lighting with perfect reflections on bodywork, showroom quality, car magazine cover, RAW photo, 8k uhd, photorealistic, perfect paint finish with metallic flake visible, dynamic angle, motion blur on wheels if moving, luxury automotive advertising, real photograph of real car, chrome reflections, realistic headlights`;
   
   return {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1344, "height": 896, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
     "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", damaged, dented, scratched, dirty, cheap car", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 35, "cfg": 6, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
+    "4": { "inputs": { "text": PHOTO_NEGATIVE + ", damaged, dented, scratched, dirty, cheap car, toy car, model car, hot wheels", "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
+    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 45, "cfg": 4.5, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "car", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
@@ -144,14 +144,14 @@ function buildCarWorkflow(prompt) {
 
 // General Photography workflow (high quality default)
 function buildGeneralWorkflow(prompt) {
-  const enhanced = `${prompt}, professional photography, shot on high-end DSLR camera, perfect lighting, RAW photo, 8k uhd, photorealistic, sharp focus, high dynamic range, magazine quality, award-winning photography, natural colors, realistic textures`;
+  const enhanced = `${prompt}, professional photography, shot on high-end full-frame DSLR camera with premium lens, perfect lighting setup, RAW photo, 8k uhd, photorealistic, tack sharp focus, high dynamic range, magazine quality, award-winning photography, natural colors, realistic textures, subtle film grain, real photograph taken by professional photographer, natural imperfections`;
   
   return {
     "1": { "inputs": { "ckpt_name": "juggernautXL_v9.safetensors" }, "class_type": "CheckpointLoaderSimple" },
     "2": { "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }, "class_type": "EmptyLatentImage" },
     "3": { "inputs": { "text": enhanced, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
     "4": { "inputs": { "text": PHOTO_NEGATIVE, "clip": ["1", 1] }, "class_type": "CLIPTextEncode" },
-    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 35, "cfg": 6, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
+    "5": { "inputs": { "seed": Math.floor(Math.random() * 1e9), "steps": 45, "cfg": 4.5, "sampler_name": "dpmpp_2m_sde", "scheduler": "karras", "denoise": 1, "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0] }, "class_type": "KSampler" },
     "6": { "inputs": { "samples": ["5", 0], "vae": ["1", 2] }, "class_type": "VAEDecode" },
     "7": { "inputs": { "filename_prefix": "photo", "images": ["6", 0] }, "class_type": "SaveImage" }
   };
