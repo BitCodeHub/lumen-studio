@@ -239,7 +239,7 @@ export default function Home() {
           <div className="welcome">
             <div className="welcome-content">
               <h1>Lumen Creative Studio</h1>
-              <p className="welcome-subtitle">Generate images, videos, 3D models, and more. Powered by your DGX Spark AI supercomputer.</p>
+              <p className="welcome-subtitle">Generate images, videos, 3D models, and more. Powered by Luna Labs - AI Supercomputer.</p>
 
               <div className="capabilities-grid">
                 {Object.entries(CAPABILITIES).map(([key, cap]) => (
