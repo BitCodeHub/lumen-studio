@@ -96,6 +96,51 @@ export default function Home() {
     return null;
   };
 
+  // Poll for image completion
+  const pollForImage = async (promptId, messageIndex) => {
+    let attempts = 0;
+    const maxAttempts = 30; // 30 seconds max
+    
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/status?prompt_id=' + promptId);
+        const data = await res.json();
+        
+        if (data.status === 'complete' && data.image_url) {
+          // Update the message with the image
+          setMessages(prev => {
+            const updated = [...prev];
+            updated[messageIndex] = {
+              ...updated[messageIndex],
+              content: '✅ Done!',
+              image: data.image_url
+            };
+            return updated;
+          });
+          return;
+        }
+        
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 1000);
+        } else {
+          setMessages(prev => {
+            const updated = [...prev];
+            updated[messageIndex] = {
+              ...updated[messageIndex],
+              content: '⏳ Taking longer than expected. Check back shortly.'
+            };
+            return updated;
+          });
+        }
+      } catch (error) {
+        console.error('Poll error:', error);
+      }
+    };
+    
+    poll();
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
     
@@ -123,18 +168,23 @@ export default function Home() {
         data = await res.json();
         
         if (data.status === 'success') {
-          // Instant meme
+          // Instant meme from Imgflip
           setMessages(prev => [...prev, {
             role: 'assistant',
             content: '😂 ' + data.template + ' meme created!',
             image: data.url
           }]);
-        } else if (data.status === 'generating') {
-          // AI-generated meme
+        } else if (data.status === 'generating' && data.prompt_id) {
+          // AI-generated meme - add pending message and poll
+          const newIndex = messages.length + 1; // +1 for user message
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: '🎨 Creating your ' + (data.template || 'meme') + '...\n\n⏳ This takes about 20 seconds.'
+            content: '🎨 Creating your ' + (data.template || 'meme') + '...\n\n⏳ This takes about 20 seconds.',
+            pending: true
           }]);
+          setLoading(false);
+          pollForImage(data.prompt_id, newIndex);
+          return;
         } else {
           setMessages(prev => [...prev, {
             role: 'assistant',
@@ -150,11 +200,17 @@ export default function Home() {
         });
         data = await res.json();
         
-        if (data.status === 'generating') {
+        if (data.status === 'generating' && data.prompt_id) {
+          // Add pending message and start polling
+          const newIndex = messages.length + 1; // +1 for user message
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: '✅ Creating your image...\n\n⏳ This takes about 20 seconds.'
+            content: '✅ Creating your image...\n\n⏳ This takes about 20 seconds.',
+            pending: true
           }]);
+          setLoading(false);
+          pollForImage(data.prompt_id, newIndex);
+          return;
         } else {
           setMessages(prev => [...prev, {
             role: 'assistant',
@@ -191,9 +247,13 @@ export default function Home() {
               <div key={i} className={'msg ' + m.role}>
                 <pre>{m.content}</pre>
                 {m.image && (
-                  <a href={m.image} target="_blank" rel="noopener noreferrer">
-                    <img src={m.image} alt="Generated meme" className="meme-image" />
-                  </a>
+                  <div className="image-container">
+                    <img src={m.image} alt="Generated image" className="generated-image" />
+                    <div className="image-actions">
+                      <a href={m.image} target="_blank" rel="noopener noreferrer" className="btn-view">View Full</a>
+                      <a href={m.image} download className="btn-download">⬇️ Download</a>
+                    </div>
+                  </div>
                 )}
               </div>
             ))}
@@ -243,11 +303,16 @@ export default function Home() {
         header h1 { font-size: 1.8rem; }
         header p { color: #888; font-size: 0.9rem; }
         .chat { background: #1a1a2e; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
-        .messages { height: 250px; overflow-y: auto; margin-bottom: 12px; }
+        .messages { height: 400px; overflow-y: auto; margin-bottom: 12px; }
         .msg { padding: 10px 14px; border-radius: 10px; margin-bottom: 8px; max-width: 85%; }
         .msg pre { white-space: pre-wrap; font-family: inherit; font-size: 0.9rem; line-height: 1.4; }
-        .meme-image { max-width: 100%; border-radius: 8px; margin-top: 8px; cursor: pointer; transition: transform 0.2s; }
-        .meme-image:hover { transform: scale(1.02); }
+        .image-container { margin-top: 10px; }
+        .generated-image { max-width: 100%; border-radius: 8px; display: block; }
+        .image-actions { display: flex; gap: 8px; margin-top: 8px; }
+        .btn-view, .btn-download { padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 500; }
+        .btn-view { background: #2a2a3e; color: #fff; }
+        .btn-download { background: #4f46e5; color: #fff; }
+        .btn-view:hover, .btn-download:hover { opacity: 0.9; }
         .msg.user { background: #4f46e5; margin-left: auto; }
         .msg.assistant { background: #2a2a3e; }
         .input-row { display: flex; gap: 8px; }
