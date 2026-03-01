@@ -90,6 +90,19 @@ const CAPABILITIES = {
       { name: 'Scene', prompt: '3D environment scene of' },
       { name: 'Product', prompt: '3D product model of' },
     ]
+  },
+  shorts: {
+    title: 'YouTube Shorts',
+    icon: '📱',
+    desc: 'Auto-generate viral shorts',
+    isVideo: true,
+    templates: [
+      { name: 'Facts Video', prompt: 'Create a YouTube Short about interesting facts:', style: 'facts' },
+      { name: 'Story Video', prompt: 'Create a dramatic story Short about:', style: 'story' },
+      { name: 'Explainer', prompt: 'Create an educational Short explaining:', style: 'educational' },
+      { name: 'Funny Take', prompt: 'Create a funny YouTube Short about:', style: 'funny' },
+      { name: 'Motivational', prompt: 'Create an inspiring Short about:', style: 'motivational' },
+    ]
   }
 };
 
