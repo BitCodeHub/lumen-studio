@@ -2,66 +2,49 @@
 // Templates from imgflip.com (most popular meme formats)
 
 const MEME_TEMPLATES = {
-  drake: {
-    id: '181913649',
-    name: 'Drake Hotline Bling',
-    boxes: 2,
-    description: 'Top: Thing you reject, Bottom: Thing you prefer'
-  },
-  expanding_brain: {
-    id: '93895088',
-    name: 'Expanding Brain',
-    boxes: 4,
-    description: '4 levels of increasingly enlightened ideas'
-  },
-  distracted_bf: {
-    id: '112126428',
-    name: 'Distracted Boyfriend',
-    boxes: 3,
-    description: 'Guy looking at other girl while girlfriend watches'
-  },
-  this_is_fine: {
-    id: '55311130',
-    name: 'This Is Fine',
-    boxes: 2,
-    description: 'Dog in burning room saying this is fine'
-  },
-  change_my_mind: {
-    id: '129242436',
-    name: 'Change My Mind',
-    boxes: 1,
-    description: 'Steven Crowder sitting at table with sign'
-  },
-  two_buttons: {
-    id: '87743020',
-    name: 'Two Buttons',
-    boxes: 3,
-    description: 'Sweating guy choosing between two buttons'
-  },
-  stonks: {
-    id: '259237855',
-    name: 'Stonks',
-    boxes: 1,
-    description: 'Meme man with stonks arrow'
-  },
-  uno_draw_25: {
-    id: '217743513',
-    name: 'UNO Draw 25',
-    boxes: 2,
-    description: 'Draw 25 or do something'
-  },
-  always_has_been: {
-    id: '252600902',
-    name: 'Always Has Been',
-    boxes: 2,
-    description: 'Astronaut with gun behind another astronaut'
-  },
-  gru_plan: {
-    id: '131940431',
-    name: "Gru's Plan",
-    boxes: 4,
-    description: 'Gru presenting plan that backfires'
-  }
+  // Viral Classics
+  drake: { id: '181913649', name: 'Drake Hotline Bling', boxes: 2 },
+  expanding_brain: { id: '93895088', name: 'Expanding Brain', boxes: 4 },
+  distracted_bf: { id: '112126428', name: 'Distracted Boyfriend', boxes: 3 },
+  woman_yelling_cat: { id: '188390779', name: 'Woman Yelling at Cat', boxes: 2 },
+  two_buttons: { id: '87743020', name: 'Two Buttons', boxes: 3 },
+  gru_plan: { id: '131940431', name: "Gru's Plan", boxes: 4 },
+  
+  // Reaction Memes
+  this_is_fine: { id: '55311130', name: 'This Is Fine', boxes: 2 },
+  surprised_pikachu: { id: '155067746', name: 'Surprised Pikachu', boxes: 1 },
+  stonks: { id: '259237855', name: 'Stonks', boxes: 1 },
+  not_stonks: { id: '259237855', name: 'Not Stonks', boxes: 1 },
+  gigachad: { id: '370867422', name: 'Gigachad', boxes: 1 },
+  wojak: { id: '309868304', name: 'Wojak', boxes: 1 },
+  
+  // Discussion Memes
+  change_my_mind: { id: '129242436', name: 'Change My Mind', boxes: 1 },
+  uno_draw_25: { id: '217743513', name: 'UNO Draw 25', boxes: 2 },
+  always_has_been: { id: '252600902', name: 'Always Has Been', boxes: 2 },
+  leonardo_pointing: { id: '274531637', name: 'Leonardo Pointing', boxes: 1 },
+  
+  // Comparison Memes
+  bernie_asking: { id: '91545132', name: 'Bernie I Am Once Again Asking', boxes: 1 },
+  buff_doge_cheems: { id: '247375501', name: 'Buff Doge vs Cheems', boxes: 4 },
+  virgin_vs_chad: { id: '345077269', name: 'Virgin vs Chad', boxes: 4 },
+  batman_slap: { id: '438680', name: 'Batman Slapping Robin', boxes: 2 },
+  
+  // Gaming & Tech
+  press_f: { id: '94282258', name: 'Press F to Pay Respects', boxes: 1 },
+  one_does_not_simply: { id: '61579', name: 'One Does Not Simply', boxes: 2 },
+  roll_safe: { id: '89370399', name: 'Roll Safe Think About It', boxes: 2 },
+  disaster_girl: { id: '97984', name: 'Disaster Girl', boxes: 2 },
+  
+  // Animal Memes
+  doge: { id: '8072285', name: 'Doge', boxes: 1 },
+  cheems: { id: '247375501', name: 'Cheems', boxes: 1 },
+  evil_kermit: { id: '84341851', name: 'Evil Kermit', boxes: 2 },
+  mocking_spongebob: { id: '102156234', name: 'Mocking Spongebob', boxes: 1 },
+  
+  // More Classics
+  success_kid: { id: '61544', name: 'Success Kid', boxes: 2 },
+  hide_pain_harold: { id: '27920', name: 'Hide the Pain Harold', boxes: 2 }
 };
 
 // Imgflip API (free tier: 100 captions/month)
@@ -75,14 +58,49 @@ const AUTH = Buffer.from(process.env.COMFYUI_AUTH || 'lumen:studio2026').toStrin
 
 // Meme-specific prompts for AI generation (fallback)
 const MEME_PROMPTS = {
-  drake: (texts) => `Drake Hotline Bling meme format, two panel vertical meme, top panel Drake disapproving and looking away from "${texts[0]}", bottom panel Drake smiling and pointing at "${texts[1]}", white background, bold Impact font text overlay, classic meme format`,
-  expanding_brain: (texts) => `Expanding brain meme, 4 panel vertical format, small brain for "${texts[0]}", medium brain for "${texts[1]}", large glowing brain for "${texts[2]}", cosmic enlightened brain for "${texts[3]}", Impact font white text with black outline`,
-  distracted_bf: (texts) => `Distracted boyfriend meme, man looking at woman labeled "${texts[1]}" while his girlfriend labeled "${texts[2]}" looks disapprovingly, original is "${texts[0]}", stock photo style, white text labels`,
-  this_is_fine: (texts) => `This is fine dog meme, cartoon dog sitting in burning room, speech bubble saying "${texts[0]}", flames and fire, calm expression, meme format`,
-  change_my_mind: (texts) => `Steven Crowder Change My Mind meme, man sitting at table with sign that says "${texts[0]}", outdoor campus setting, meme format`,
-  stonks: (texts) => `Stonks meme, meme man (pink/peach colored head) in business suit, green upward arrow stock chart, text "${texts[0]}", surreal meme format`,
-  uno_draw_25: (texts) => `UNO Draw 25 meme, person holding UNO cards, two options: "${texts[0]}" or "Draw 25 cards", meme format`,
-  always_has_been: (texts) => `Always has been meme, two astronauts in space, one looking at Earth saying "${texts[0]}", second astronaut behind with gun saying "${texts[1] || 'Always has been'}", Earth visible, space background`
+  // Viral Classics
+  drake: (texts) => `Drake Hotline Bling meme format, two panel vertical meme, top panel Drake disapproving "${texts[0]}", bottom panel Drake approving "${texts[1]}", white background, Impact font`,
+  expanding_brain: (texts) => `Expanding brain meme 4 panels, small brain "${texts[0]}", medium brain "${texts[1]}", glowing brain "${texts[2]}", cosmic galaxy brain "${texts[3]}"`,
+  distracted_bf: (texts) => `Distracted boyfriend meme, man looking at "${texts[1]}" while girlfriend "${texts[0]}" watches disapprovingly, stock photo style`,
+  woman_yelling_cat: (texts) => `Woman yelling at cat meme, left panel angry woman pointing yelling "${texts[0]}", right panel confused white cat at dinner table "${texts[1]}"`,
+  two_buttons: (texts) => `Two buttons meme, sweating man choosing between button "${texts[0]}" and button "${texts[1]}", anxious decision`,
+  gru_plan: (texts) => `Gru plan meme 4 panels, Gru presenting "${texts[0]}", then "${texts[1]}", then "${texts[2]}", then realizes mistake "${texts[3]}"`,
+  
+  // Reaction Memes
+  this_is_fine: (texts) => `This is fine meme, cartoon dog sitting calmly in burning room, speech bubble "${texts[0]}", flames everywhere`,
+  surprised_pikachu: (texts) => `Surprised Pikachu meme, yellow Pikachu with shocked open mouth face, caption "${texts[0]}"`,
+  stonks: (texts) => `Stonks meme, meme man surreal face in business suit, green arrow going up, text "${texts[0]}"`,
+  not_stonks: (texts) => `Not stonks meme, meme man surreal face looking sad, red arrow going down, text "${texts[0]}"`,
+  gigachad: (texts) => `Gigachad meme, extremely muscular handsome man, text "${texts[0]}", sigma male energy`,
+  wojak: (texts) => `Wojak crying meme, bald man crying behind happy mask, text "${texts[0]}"`,
+  
+  // Discussion Memes
+  change_my_mind: (texts) => `Change my mind meme, Steven Crowder at table with sign "${texts[0]}", outdoor setting, confident pose`,
+  uno_draw_25: (texts) => `UNO Draw 25 meme, person holding many cards, choice between "${texts[0]}" or Draw 25`,
+  always_has_been: (texts) => `Always has been meme, astronaut looking at Earth "${texts[0]}", second astronaut behind with gun "${texts[1] || 'Always has been'}"`,
+  leonardo_pointing: (texts) => `Leonardo DiCaprio pointing meme from Once Upon Time Hollywood, excited pointing at TV, text "${texts[0]}"`,
+  
+  // Comparison Memes
+  bernie_asking: (texts) => `Bernie Sanders meme, I am once again asking "${texts[0]}", mittens, winter coat`,
+  buff_doge_cheems: (texts) => `Buff Doge vs Cheems meme, muscular Shiba "${texts[0]}" vs crying weak Cheems "${texts[1]}"`,
+  virgin_vs_chad: (texts) => `Virgin vs Chad meme, hunched virgin "${texts[0]}" vs confident Chad "${texts[1]}"`,
+  batman_slap: (texts) => `Batman slapping Robin meme, Robin says "${texts[0]}", Batman slaps saying "${texts[1]}"`,
+  
+  // Gaming & Tech
+  press_f: (texts) => `Press F to pay respects meme, Call of Duty funeral scene, text "${texts[0]}"`,
+  one_does_not_simply: (texts) => `One does not simply meme, Boromir from LOTR, text "One does not simply ${texts[0]}"`,
+  roll_safe: (texts) => `Roll Safe think about it meme, man tapping head, text "${texts[0]}" with smart solution`,
+  disaster_girl: (texts) => `Disaster girl meme, little girl smiling deviously at camera, house burning behind, text "${texts[0]}"`,
+  
+  // Animal Memes
+  doge: (texts) => `Doge meme, Shiba Inu dog with comic sans text, "much ${texts[0]}", "very wow", "so amaze"`,
+  cheems: (texts) => `Cheems meme, derpy Shiba Inu, text "${texts[0]}" with misspellings`,
+  evil_kermit: (texts) => `Evil Kermit meme, Kermit talking to hooded evil Kermit, "Me: ${texts[0]}" "Also me: ${texts[1]}"`,
+  mocking_spongebob: (texts) => `Mocking Spongebob meme, chicken Spongebob, alternating caps text "${texts[0]}"`,
+  
+  // More Classics
+  success_kid: (texts) => `Success kid meme, baby with fist pump, text "${texts[0]}" success story`,
+  hide_pain_harold: (texts) => `Hide the Pain Harold meme, older man smiling but eyes show pain, text "${texts[0]}"`
 };
 
 async function generateMemeImgflip(templateId, texts) {

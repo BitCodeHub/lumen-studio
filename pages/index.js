@@ -22,14 +22,43 @@ const TEMPLATES = {
     { name: 'Upscale', prompt: 'Upscale to 4K HD quality' },
   ],
   meme: [
-    { name: 'Drake', prompt: 'drake:', template: 'drake', hint: 'Top text vs Bottom text (what you reject vs what you prefer)' },
-    { name: 'Expanding Brain', prompt: 'expanding_brain:', template: 'expanding_brain', hint: '4 levels separated by /' },
-    { name: 'Distracted BF', prompt: 'distracted_bf:', template: 'distracted_bf', hint: 'Boyfriend / New thing / Girlfriend' },
-    { name: 'This Is Fine', prompt: 'this_is_fine:', template: 'this_is_fine', hint: 'Top text / Bottom text' },
-    { name: 'Change My Mind', prompt: 'change_my_mind:', template: 'change_my_mind', hint: 'Your controversial opinion' },
-    { name: 'Stonks', prompt: 'stonks:', template: 'stonks', hint: 'Your caption' },
-    { name: 'UNO Draw 25', prompt: 'uno_draw_25:', template: 'uno_draw_25', hint: 'Do this thing / or draw 25' },
-    { name: 'Always Has Been', prompt: 'always_has_been:', template: 'always_has_been', hint: 'Wait its all X? / Always has been' },
+    // Viral Classics
+    { name: 'Drake', prompt: 'drake:', hint: 'Reject vs Prefer' },
+    { name: 'Expanding Brain', prompt: 'expanding_brain:', hint: '4 levels of enlightenment' },
+    { name: 'Distracted BF', prompt: 'distracted_bf:', hint: 'BF / New thing / GF' },
+    { name: 'Woman Yelling', prompt: 'woman_yelling_cat:', hint: 'Woman yelling / Cat' },
+    { name: 'Two Buttons', prompt: 'two_buttons:', hint: 'Choice 1 / Choice 2' },
+    { name: 'Gru Plan', prompt: 'gru_plan:', hint: '4 panels, last backfires' },
+    // Reaction Memes
+    { name: 'This Is Fine', prompt: 'this_is_fine:', hint: 'Calm in chaos' },
+    { name: 'Surprised Pikachu', prompt: 'surprised_pikachu:', hint: 'Obvious outcome' },
+    { name: 'Stonks', prompt: 'stonks:', hint: 'Financial wisdom' },
+    { name: 'Not Stonks', prompt: 'not_stonks:', hint: 'Financial failure' },
+    { name: 'Gigachad', prompt: 'gigachad:', hint: 'Chad response' },
+    { name: 'Wojak', prompt: 'wojak:', hint: 'Sad/crying feeling' },
+    // Discussion Memes
+    { name: 'Change My Mind', prompt: 'change_my_mind:', hint: 'Hot take' },
+    { name: 'UNO Draw 25', prompt: 'uno_draw_25:', hint: 'Do X or draw 25' },
+    { name: 'Always Has Been', prompt: 'always_has_been:', hint: 'Wait its all X?' },
+    { name: 'Leonardo Pointing', prompt: 'leonardo_pointing:', hint: 'When you see it' },
+    // Comparison Memes
+    { name: 'Bernie Asking', prompt: 'bernie_asking:', hint: 'Once again asking' },
+    { name: 'Buff Doge vs Cheems', prompt: 'buff_doge_cheems:', hint: 'Strong vs weak' },
+    { name: 'Virgin vs Chad', prompt: 'virgin_vs_chad:', hint: 'Lame vs based' },
+    { name: 'Batman Slap', prompt: 'batman_slap:', hint: 'Robin says / Batman slaps' },
+    // Gaming & Tech
+    { name: 'Press F', prompt: 'press_f:', hint: 'Pay respects' },
+    { name: 'One Does Not Simply', prompt: 'one_does_not_simply:', hint: 'Walk into Mordor' },
+    { name: 'Roll Safe', prompt: 'roll_safe:', hint: 'Cant fail if...' },
+    { name: 'Disaster Girl', prompt: 'disaster_girl:', hint: 'Sinister smile' },
+    // Animal Memes
+    { name: 'Doge', prompt: 'doge:', hint: 'Much wow, very X' },
+    { name: 'Cheems', prompt: 'cheems:', hint: 'Bonk / sad cheems' },
+    { name: 'Evil Kermit', prompt: 'evil_kermit:', hint: 'Me / My dark side' },
+    { name: 'Mocking Spongebob', prompt: 'mocking_spongebob:', hint: 'AlTeRnAtInG tExT' },
+    // More Classics
+    { name: 'Success Kid', prompt: 'success_kid:', hint: 'Small victory' },
+    { name: 'Hide the Pain Harold', prompt: 'hide_pain_harold:', hint: 'Hiding pain' },
   ],
 };
 
@@ -43,8 +72,22 @@ export default function Home() {
 
   // Check if input is a meme template request
   const detectMemeTemplate = (text) => {
-    const memeTemplates = ['drake:', 'expanding_brain:', 'distracted_bf:', 'this_is_fine:', 
-                          'change_my_mind:', 'stonks:', 'uno_draw_25:', 'always_has_been:'];
+    const memeTemplates = [
+      // Viral Classics
+      'drake:', 'expanding_brain:', 'distracted_bf:', 'woman_yelling_cat:', 'two_buttons:', 'gru_plan:',
+      // Reaction Memes
+      'this_is_fine:', 'surprised_pikachu:', 'stonks:', 'not_stonks:', 'gigachad:', 'wojak:',
+      // Discussion Memes
+      'change_my_mind:', 'uno_draw_25:', 'always_has_been:', 'leonardo_pointing:',
+      // Comparison Memes
+      'bernie_asking:', 'buff_doge_cheems:', 'virgin_vs_chad:', 'batman_slap:',
+      // Gaming & Tech
+      'press_f:', 'one_does_not_simply:', 'roll_safe:', 'disaster_girl:',
+      // Animal Memes
+      'doge:', 'cheems:', 'evil_kermit:', 'mocking_spongebob:',
+      // More Classics
+      'success_kid:', 'hide_pain_harold:'
+    ];
     for (const t of memeTemplates) {
       if (text.toLowerCase().startsWith(t)) {
         return { template: t.replace(':', ''), text: text.substring(t.length).trim() };
