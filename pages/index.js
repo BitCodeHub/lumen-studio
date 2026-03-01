@@ -22,10 +22,14 @@ const TEMPLATES = {
     { name: 'Upscale', prompt: 'Upscale to 4K HD quality' },
   ],
   meme: [
-    { name: 'Drake', prompt: 'Drake meme format:' },
-    { name: 'Expanding Brain', prompt: 'Expanding brain meme:' },
-    { name: 'Distracted BF', prompt: 'Distracted boyfriend meme:' },
-    { name: 'This Is Fine', prompt: 'This is fine meme:' },
+    { name: 'Drake', prompt: 'drake:', template: 'drake', hint: 'Top text vs Bottom text (what you reject vs what you prefer)' },
+    { name: 'Expanding Brain', prompt: 'expanding_brain:', template: 'expanding_brain', hint: '4 levels separated by /' },
+    { name: 'Distracted BF', prompt: 'distracted_bf:', template: 'distracted_bf', hint: 'Boyfriend / New thing / Girlfriend' },
+    { name: 'This Is Fine', prompt: 'this_is_fine:', template: 'this_is_fine', hint: 'Top text / Bottom text' },
+    { name: 'Change My Mind', prompt: 'change_my_mind:', template: 'change_my_mind', hint: 'Your controversial opinion' },
+    { name: 'Stonks', prompt: 'stonks:', template: 'stonks', hint: 'Your caption' },
+    { name: 'UNO Draw 25', prompt: 'uno_draw_25:', template: 'uno_draw_25', hint: 'Do this thing / or draw 25' },
+    { name: 'Always Has Been', prompt: 'always_has_been:', template: 'always_has_been', hint: 'Wait its all X? / Always has been' },
   ],
 };
 
@@ -37,6 +41,18 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('image');
 
+  // Check if input is a meme template request
+  const detectMemeTemplate = (text) => {
+    const memeTemplates = ['drake:', 'expanding_brain:', 'distracted_bf:', 'this_is_fine:', 
+                          'change_my_mind:', 'stonks:', 'uno_draw_25:', 'always_has_been:'];
+    for (const t of memeTemplates) {
+      if (text.toLowerCase().startsWith(t)) {
+        return { template: t.replace(':', ''), text: text.substring(t.length).trim() };
+      }
+    }
+    return null;
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
     
@@ -46,24 +62,62 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: currentInput })
-      });
+      // Check if this is a meme request
+      const memeRequest = detectMemeTemplate(currentInput);
       
-      const data = await res.json();
+      let res, data;
       
-      if (data.status === 'generating') {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: \`✅ \${data.message}\n\n⏳ Processing on DGX Spark GPU...\nGeneration takes ~22 seconds.\n\n🔗 View results: \${data.check_at}\`
-        }]);
+      if (memeRequest) {
+        // Use meme API for meme templates
+        res = await fetch('/api/meme', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            template: memeRequest.template, 
+            text: memeRequest.text 
+          })
+        });
+        data = await res.json();
+        
+        if (data.status === 'success') {
+          // Instant meme from Imgflip
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: \`😂 \${data.template} meme generated!\n\n\`,
+            image: data.url
+          }]);
+        } else if (data.status === 'generating') {
+          // AI-generated meme (takes ~22 sec)
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: \`🎨 \${data.message}\n\n⏳ Processing on DGX Spark GPU...\n\n🔗 View results: \${data.check_at}\`
+          }]);
+        } else {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: \`❌ Error: \${data.message || data.error}\n\n\${data.hint || ''}\`
+          }]);
+        }
       } else {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: \`❌ Error: \${data.message}\n\n\${data.hint || ''}\`
-        }]);
+        // Use regular generate API for images/videos
+        res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: currentInput })
+        });
+        data = await res.json();
+        
+        if (data.status === 'generating') {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: \`✅ \${data.message}\n\n⏳ Processing on DGX Spark GPU...\nGeneration takes ~22 seconds.\n\n🔗 View results: \${data.check_at}\`
+          }]);
+        } else {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: \`❌ Error: \${data.message}\n\n\${data.hint || ''}\`
+          }]);
+        }
       }
     } catch (error) {
       setMessages(prev => [...prev, {
@@ -94,9 +148,14 @@ export default function Home() {
             {messages.map((m, i) => (
               <div key={i} className={\`msg \${m.role}\`}>
                 <pre>{m.content}</pre>
+                {m.image && (
+                  <a href={m.image} target="_blank" rel="noopener noreferrer">
+                    <img src={m.image} alt="Generated meme" className="meme-image" />
+                  </a>
+                )}
               </div>
             ))}
-            {loading && <div className="msg assistant">⏳ Sending to DGX Spark...</div>}
+            {loading && <div className="msg assistant">⏳ Processing...</div>}
           </div>
           
           <div className="input-row">
@@ -146,6 +205,8 @@ export default function Home() {
         .messages { height: 250px; overflow-y: auto; margin-bottom: 12px; }
         .msg { padding: 10px 14px; border-radius: 10px; margin-bottom: 8px; max-width: 85%; }
         .msg pre { white-space: pre-wrap; font-family: inherit; font-size: 0.9rem; line-height: 1.4; }
+        .meme-image { max-width: 100%; border-radius: 8px; margin-top: 8px; cursor: pointer; transition: transform 0.2s; }
+        .meme-image:hover { transform: scale(1.02); }
         .msg.user { background: #4f46e5; margin-left: auto; }
         .msg.assistant { background: #2a2a3e; }
         .input-row { display: flex; gap: 8px; }
