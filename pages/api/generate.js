@@ -1,27 +1,36 @@
 const COMFYUI_URL = process.env.COMFYUI_URL || 'http://localhost:8188';
 const AUTH = Buffer.from(process.env.COMFYUI_AUTH || 'lumen:studio2026').toString('base64');
 
-// Photography category detection
+// Photography category detection (order matters - most specific first)
 function detectCategory(prompt) {
   const lower = prompt.toLowerCase();
+  
+  // Portrait/People photography (check FIRST - people are primary subject)
+  const portraitKeywords = ['portrait', 'person', 'woman', 'man', 'girl', 'boy', 
+    'fashion', 'model', 'face', 'human', 'people', 'headshot', 'influencer',
+    'selfie', 'couple', 'family', 'child', 'baby', 'elderly', 'bride', 'groom',
+    'wedding', 'dress', 'suit', 'businessman', 'businesswoman', 'athlete',
+    'dancer', 'musician', 'actor', 'actress', 'celebrity'];
+  if (portraitKeywords.some(k => lower.includes(k))) return 'portrait';
+  
+  // Car/Vehicle photography (check before product - cars are specific)
+  const carKeywords = ['car', 'vehicle', 'automobile', 'sports car', 'luxury car',
+    'motorcycle', 'bike', 'truck', 'suv', 'sedan', 'coupe', 'ferrari', 'porsche',
+    'lamborghini', 'bmw', 'mercedes', 'tesla', 'audi', 'lexus', 'driving'];
+  if (carKeywords.some(k => lower.includes(k))) return 'car';
   
   // Food photography
   const foodKeywords = ['food', 'dish', 'meal', 'bowl', 'plate', 'pho', 'ramen', 
     'sushi', 'pasta', 'pizza', 'burger', 'steak', 'salad', 'soup', 'noodle',
     'bun bo', 'banh mi', 'cuisine', 'restaurant', 'cooking', 'recipe', 'delicious',
-    'dessert', 'cake', 'coffee', 'drink', 'cocktail', 'wine'];
+    'dessert', 'cake', 'coffee', 'drink', 'cocktail', 'wine', 'breakfast', 
+    'lunch', 'dinner', 'appetizer', 'entree'];
   if (foodKeywords.some(k => lower.includes(k))) return 'food';
-  
-  // Portrait/People photography
-  const portraitKeywords = ['portrait', 'person', 'woman', 'man', 'girl', 'boy', 
-    'fashion', 'model', 'face', 'human', 'people', 'headshot', 'influencer',
-    'selfie', 'couple', 'family', 'child', 'baby', 'elderly', 'professional'];
-  if (portraitKeywords.some(k => lower.includes(k))) return 'portrait';
   
   // Product photography
   const productKeywords = ['product', 'bottle', 'package', 'box', 'shoe', 'watch',
     'jewelry', 'perfume', 'cosmetic', 'makeup', 'handbag', 'electronics', 'phone',
-    'headphones', 'sneaker', 'clothing', 'apparel', 'accessory', 'luxury'];
+    'headphones', 'sneaker', 'apparel', 'accessory', 'gadget', 'device'];
   if (productKeywords.some(k => lower.includes(k))) return 'product';
   
   // Landscape/Nature photography
