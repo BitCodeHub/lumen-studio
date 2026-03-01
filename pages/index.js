@@ -32,13 +32,28 @@ const CAPABILITIES = {
     title: 'Video',
     icon: '🎬',
     desc: 'AI video generation',
+    isVideo: true,
     templates: [
-      { name: 'Product Ad', prompt: 'Create 30-second Apple-style ad for' },
-      { name: 'Explainer', prompt: 'Create 60-second explainer video about' },
-      { name: 'Movie Trailer', prompt: 'Create Hollywood movie trailer for' },
-      { name: 'Social Reel', prompt: 'Create TikTok viral reel about' },
-      { name: 'Documentary', prompt: 'Create Netflix-style documentary about' },
-      { name: 'Music Video', prompt: 'Create MTV-style music video for' },
+      { name: 'Product Ad (30s)', prompt: 'Create 30-second Apple-style product ad for', style: 'apple' },
+      { name: 'Social Reel (15s)', prompt: 'Create 15-second viral TikTok reel about', style: 'social' },
+      { name: 'Tech Demo (60s)', prompt: 'Create 60-second tech startup demo for', style: 'tech' },
+      { name: 'Corporate (30s)', prompt: 'Create 30-second corporate video about', style: 'corporate' },
+      { name: 'Luxury Ad (30s)', prompt: 'Create 30-second luxury brand ad for', style: 'luxury' },
+      { name: 'Quick Clip (6s)', prompt: 'Create quick 6-second Instagram story for', style: 'social' },
+    ]
+  },
+  ads: {
+    title: 'Marketing',
+    icon: '📢',
+    desc: 'Full marketing ads',
+    isVideo: true,
+    templates: [
+      { name: 'Apple Style', prompt: 'Create Apple-style commercial for my product:', style: 'apple' },
+      { name: 'Nike Style', prompt: 'Create inspiring Nike-style ad about:', style: 'nike' },
+      { name: 'Startup Demo', prompt: 'Create SaaS product demo video for:', style: 'tech' },
+      { name: 'E-commerce', prompt: 'Create product showcase ad for:', style: 'luxury' },
+      { name: 'Social Campaign', prompt: 'Create viral social media campaign for:', style: 'social' },
+      { name: 'Brand Story', prompt: 'Create emotional brand story video about:', style: 'corporate' },
     ]
   },
   animate: {
@@ -101,6 +116,18 @@ export default function Home() {
       }
     }
     return null;
+  };
+
+  const detectVideoRequest = (text) => {
+    const lower = text.toLowerCase();
+    const videoKeywords = ['video', 'animate', 'motion', 'clip', 'reel', 'trailer', 'commercial', 'film', 'movie', 'documentary', 'second ad', 'sec ad', 's ad'];
+    return videoKeywords.some(kw => lower.includes(kw));
+  };
+
+  const detectAdRequest = (text) => {
+    const lower = text.toLowerCase();
+    const adKeywords = ['ad for', 'commercial for', 'marketing', 'product ad', 'brand video', 'promo video', 'advertisement', 'apple style', 'nike style', 'startup demo', 'product demo'];
+    return adKeywords.some(kw => lower.includes(kw));
   };
 
   const pollForImage = async (promptId, messageIndex) => {
@@ -186,9 +213,21 @@ export default function Home() {
 
     try {
       const memeRequest = detectMemeTemplate(currentInput);
+      const isVideoRequest = detectVideoRequest(currentInput);
+      const isAdRequest = detectAdRequest(currentInput);
       let res, data;
 
-      if (currentFile) {
+      if (currentFile && isVideoRequest) {
+        // Image to video (AnimateDiff)
+        res = await fetch('/api/video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: currentFile, prompt: currentInput, videoType: 'image_to_video' })
+        });
+        data = await res.json();
+        setUploadedFile(null);
+        setUploadedFilename(null);
+      } else if (currentFile) {
         // Image editing workflow
         res = await fetch('/api/edit', {
           method: 'POST',
@@ -198,6 +237,22 @@ export default function Home() {
         data = await res.json();
         setUploadedFile(null);
         setUploadedFilename(null);
+      } else if (isAdRequest) {
+        // Marketing ad creation
+        res = await fetch('/api/ad', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: currentInput })
+        });
+        data = await res.json();
+      } else if (isVideoRequest) {
+        // Text to video
+        res = await fetch('/api/video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: currentInput })
+        });
+        data = await res.json();
       } else if (memeRequest) {
         res = await fetch('/api/meme', {
           method: 'POST',
