@@ -276,9 +276,13 @@ export default function Home() {
         const res = await fetch('/api/status?prompt_id=' + promptId);
         const data = await res.json();
         if (data.status === 'complete' && data.image_url) {
-          // Save the filename for future edit operations
+          // Save the filename, subfolder, and type for future edit operations
           if (data.filename) {
-            setLastGeneratedImage(data.filename);
+            setLastGeneratedImage({
+              filename: data.filename,
+              subfolder: data.subfolder || '',
+              type: data.type || 'output'
+            });
           }
           setMessages(prev => {
             const updated = [...prev];
@@ -361,14 +365,18 @@ export default function Home() {
       let res, data;
 
       // Determine which image to edit (uploaded or last generated)
-      const imageToEdit = currentFile || (detectEditRequest(currentInput) ? lastGeneratedImage : null);
+      // lastGeneratedImage is now an object: { filename, subfolder, type }
+      const lastImage = detectEditRequest(currentInput) ? lastGeneratedImage : null;
+      const imageToEdit = currentFile || (lastImage?.filename || lastImage);
+      const imageSubfolder = lastImage?.subfolder || '';
+      const imageType = lastImage?.type || 'input';
       
       if (imageToEdit && isVideoRequest) {
         // Image to video (AnimateDiff)
         res = await fetch('/api/video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: imageToEdit, prompt: currentInput, videoType: 'image_to_video' })
+          body: JSON.stringify({ filename: typeof imageToEdit === 'object' ? imageToEdit.filename : imageToEdit, prompt: currentInput, videoType: 'image_to_video' })
         });
         data = await res.json();
         setUploadedFile(null);
@@ -378,7 +386,12 @@ export default function Home() {
         res = await fetch('/api/edit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: imageToEdit, prompt: currentInput })
+          body: JSON.stringify({ 
+            filename: typeof imageToEdit === 'object' ? imageToEdit.filename : imageToEdit, 
+            prompt: currentInput,
+            subfolder: imageSubfolder,
+            type: imageType
+          })
         });
         data = await res.json();
         setUploadedFile(null);

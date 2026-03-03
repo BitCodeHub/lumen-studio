@@ -2,6 +2,50 @@
 const COMFYUI_URL = process.env.COMFYUI_URL || 'http://localhost:8188';
 const AUTH = Buffer.from(process.env.COMFYUI_AUTH || 'lumen:studio2026').toString('base64');
 
+// Helper to copy output images to input folder for editing
+async function ensureInputImage(filename, subfolder, type) {
+  // If already in input folder, return as-is
+  if (!type || type === 'input') return filename;
+  
+  try {
+    // Fetch image from output folder
+    const imageUrl = `${COMFYUI_URL}/view?filename=${encodeURIComponent(filename)}&subfolder=${encodeURIComponent(subfolder || '')}&type=${encodeURIComponent(type)}`;
+    const imageRes = await fetch(imageUrl, { 
+      headers: { 'Authorization': 'Basic ' + AUTH }
+    });
+    
+    if (!imageRes.ok) {
+      console.error('Failed to fetch image from output:', imageRes.status);
+      return filename; // Fall back to original filename
+    }
+    
+    const imageBuffer = await imageRes.arrayBuffer();
+    
+    // Upload to input folder
+    const formData = new FormData();
+    const blob = new Blob([imageBuffer], { type: 'image/png' });
+    formData.append('image', blob, filename);
+    
+    const uploadRes = await fetch(COMFYUI_URL + '/upload/image', {
+      method: 'POST',
+      headers: { 'Authorization': 'Basic ' + AUTH },
+      body: formData
+    });
+    
+    if (!uploadRes.ok) {
+      console.error('Failed to upload to input:', uploadRes.status);
+      return filename;
+    }
+    
+    const uploadData = await uploadRes.json();
+    console.log('Copied image to input:', uploadData.name);
+    return uploadData.name || filename;
+  } catch (error) {
+    console.error('ensureInputImage error:', error);
+    return filename;
+  }
+}
+
 // MAXIMUM PHOTOREALISM - Universal anti-AI negative prompt (SAME AS GENERATE)
 const PHOTO_NEGATIVE = `ugly, blurry, low quality, deformed, disfigured, bad anatomy, bad proportions, watermark, text, signature, jpeg artifacts, poorly drawn, cartoon, anime, illustration, painting, drawing, cgi, 3d render, artificial, fake, plastic, oversaturated, amateur, grainy, noisy, AI generated, airbrushed, smooth skin, digital art, unrealistic, overprocessed, HDR, hyper saturated, video game, unnatural colors, synthetic, computer generated, midjourney, dall-e, stable diffusion artifacts`;
 
@@ -262,13 +306,16 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { filename, prompt, operation } = req.body;
+  const { filename, prompt, operation, subfolder, type } = req.body;
 
   if (!filename) {
     return res.status(400).json({ error: 'filename required' });
   }
 
   try {
+    // Copy image to input folder if it's from output (generated images)
+    const inputFilename = await ensureInputImage(filename, subfolder, type);
+    
     const op = operation || detectOperation(prompt || '');
     let workflow;
     let description;
@@ -277,36 +324,36 @@ export default async function handler(req, res) {
       case 'sam_inpaint':
         const maskTarget = extractMaskTarget(prompt);
         const addition = extractAddition(prompt);
-        workflow = WORKFLOWS.sam_inpaint(filename, prompt, maskTarget, addition);
+        workflow = WORKFLOWS.sam_inpaint(inputFilename, prompt, maskTarget, addition);
         description = `SAM inpainting: adding "${addition}" in "${maskTarget}" area (photorealistic)`;
         break;
       case 'remove':
         const removeTarget = extractRemoveTarget(prompt);
-        workflow = WORKFLOWS.remove(filename, prompt, removeTarget);
+        workflow = WORKFLOWS.remove(inputFilename, prompt, removeTarget);
         description = `SAM removal: removing "${removeTarget}" (photorealistic)`;
         break;
       case 'add_element':
-        workflow = WORKFLOWS.add_element(filename, prompt);
+        workflow = WORKFLOWS.add_element(inputFilename, prompt);
         description = 'Adding element (photorealistic fallback)';
         break;
       case 'transform':
-        workflow = WORKFLOWS.transform(filename, prompt);
+        workflow = WORKFLOWS.transform(inputFilename, prompt);
         description = 'Transforming image (photorealistic)';
         break;
       case 'upscale':
-        workflow = WORKFLOWS.upscale(filename);
+        workflow = WORKFLOWS.upscale(inputFilename);
         description = 'Upscaling to 4K with UltraSharp';
         break;
       case 'face_restore':
-        workflow = WORKFLOWS.face_restore(filename);
+        workflow = WORKFLOWS.face_restore(inputFilename);
         description = 'Restoring face details with GFPGAN';
         break;
       case 'style_transfer':
-        workflow = WORKFLOWS.style_transfer(filename, prompt);
+        workflow = WORKFLOWS.style_transfer(inputFilename, prompt);
         description = 'Applying style transfer (photorealistic output)';
         break;
       default:
-        workflow = WORKFLOWS.add_element(filename, prompt || 'enhance this image');
+        workflow = WORKFLOWS.add_element(inputFilename, prompt || 'enhance this image');
         description = 'Processing image (photorealistic)';
     }
 
@@ -324,7 +371,7 @@ export default async function handler(req, res) {
       // If SAM fails, fallback to add_element
       if ((op === 'sam_inpaint' || op === 'remove') && text.includes('error')) {
         console.log('SAM failed, falling back to add_element');
-        const fallbackWorkflow = WORKFLOWS.add_element(filename, prompt);
+        const fallbackWorkflow = WORKFLOWS.add_element(inputFilename, prompt);
         const fallbackRes = await fetch(COMFYUI_URL + '/prompt', {
           method: 'POST',
           headers: {
