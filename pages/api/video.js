@@ -107,6 +107,39 @@ function parseDuration(prompt) {
   return 16;
 }
 
+// Import job queue functions
+import fs from 'fs/promises';
+import path from 'path';
+
+const JOBS_FILE = path.join(process.cwd(), 'data', 'video-jobs.json');
+
+async function createJob(prompt, duration, comfyPromptId) {
+  const dataDir = path.join(process.cwd(), 'data');
+  try { await fs.mkdir(dataDir, { recursive: true }); } catch (e) {}
+  
+  let jobs = { jobs: {} };
+  try {
+    const data = await fs.readFile(JOBS_FILE, 'utf8');
+    jobs = JSON.parse(data);
+  } catch (e) {}
+  
+  const jobId = `vid_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  jobs.jobs[jobId] = {
+    id: jobId,
+    prompt,
+    duration,
+    comfyPromptId,
+    status: 'rendering',
+    progress: 5,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    outputs: []
+  };
+  
+  await fs.writeFile(JOBS_FILE, JSON.stringify(jobs, null, 2));
+  return jobId;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -120,6 +153,7 @@ export default async function handler(req, res) {
 
   try {
     const frames = parseDuration(prompt);
+    const duration = Math.round(frames / 12);
     let workflow;
     let type;
 
@@ -147,15 +181,22 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     
+    // Create job in queue for tracking
+    const jobId = await createJob(prompt, duration, data.prompt_id);
+    
     return res.status(200).json({
       status: 'generating',
       prompt_id: data.prompt_id,
+      job_id: jobId,
       operation: 'video',
       type: type,
       frames: frames,
+      duration: duration,
       message: filename 
-        ? `Animating your image (~${Math.round(frames/12)}s video)...` 
-        : `Creating video (~${Math.round(frames/12)}s)...`,
+        ? `Animating your image (~${duration}s video)...` 
+        : `Creating video (~${duration}s)...`,
+      poll_url: `/api/video-queue?jobId=${jobId}`,
+      note: 'Poll the poll_url every 5 seconds for progress. You will get a WhatsApp notification when complete.'
     });
 
   } catch (error) {
