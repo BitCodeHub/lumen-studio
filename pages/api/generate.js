@@ -273,6 +273,8 @@ export default async function handler(req, res) {
   try {
     let workflow;
     let selectedModel;
+    let quality = 'Best Quality';
+    let estimatedTime = '30–60 seconds';
     let category;
     let appliedLora = null;
 
@@ -288,30 +290,44 @@ export default async function handler(req, res) {
       case 'portrait':
         workflow = buildPortraitWorkflow(prompt, loraToUse);
         selectedModel = 'Juggernaut XL (Portrait)';
+        quality = 'Best Quality';
+        estimatedTime = '30–60 seconds';
         break;
       case 'food':
         workflow = buildFoodWorkflow(prompt, loraToUse);
         selectedModel = 'Juggernaut XL (Food)';
+        quality = 'Best Quality';
+        estimatedTime = '30–60 seconds';
         break;
       case 'product':
         workflow = buildProductWorkflow(prompt, loraToUse);
         selectedModel = 'Juggernaut XL (Product)';
+        quality = 'Best Quality';
+        estimatedTime = '30–60 seconds';
         break;
       case 'landscape':
         workflow = buildLandscapeWorkflow(prompt, loraToUse);
         selectedModel = 'Juggernaut XL (Landscape)';
+        quality = 'Best Quality';
+        estimatedTime = '30–60 seconds';
         break;
       case 'architecture':
         workflow = buildArchitectureWorkflow(prompt, loraToUse);
         selectedModel = 'Juggernaut XL (Architecture)';
+        quality = 'Best Quality';
+        estimatedTime = '30–60 seconds';
         break;
       case 'car':
         workflow = buildCarWorkflow(prompt, loraToUse);
         selectedModel = 'Juggernaut XL (Automotive)';
+        quality = 'Best Quality';
+        estimatedTime = '30–60 seconds';
         break;
       default:
         workflow = buildGeneralWorkflow(prompt, loraToUse);
         selectedModel = 'Juggernaut XL (Photo)';
+        quality = 'Best Quality';
+        estimatedTime = '30–60 seconds';
     }
     
     if (loraToUse) {
@@ -364,7 +380,9 @@ export default async function handler(req, res) {
             model: selectedModel,
             category: category,
             lora: null,
-            message: `Creating photorealistic image with ${selectedModel}...`
+            quality: quality,
+          estimatedTime: estimatedTime,
+          message: `Creating ${quality} image...`
           });
         }
       }
@@ -380,7 +398,9 @@ export default async function handler(req, res) {
       model: selectedModel,
       category: category,
       lora: appliedLora,
-      message: `Creating photorealistic image with ${selectedModel}${appliedLora ? ` + ${appliedLora.replace('.safetensors', '')}` : ''}...`
+      quality: quality,
+      estimatedTime: estimatedTime,
+      message: `Creating ${quality} image...`
     });
 
   } catch (error) {

@@ -462,7 +462,13 @@ export default function Home() {
       
       if (data.status === 'generating' && data.prompt_id) {
         const idx = messages.length + (currentInput ? 1 : 0);
-        setMessages(prev => [...prev, { role: 'assistant', status: 'loading', operation: data.operation }]);
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          status: 'loading', 
+          operation: data.operation,
+          quality: data.quality,
+          estimatedTime: data.estimatedTime
+        }]);
         setLoading(false);
         pollForImage(data.prompt_id, idx);
         return;
@@ -784,7 +790,17 @@ export default function Home() {
                     {m.status === 'loading' && (
                       <div className="loading-state">
                         <div className="spinner"></div>
-                        <span>Processing{m.operation ? ' (' + m.operation + ')' : ''}...</span>
+                        <div className="loading-info">
+                          {m.quality ? (
+                            <>
+                              <span className="quality-badge">{m.quality}</span>
+                              <span className="loading-text">Generating your image...</span>
+                              {m.estimatedTime && <span className="time-estimate">⏱ {m.estimatedTime}</span>}
+                            </>
+                          ) : (
+                            <span>Processing{m.operation ? ' (' + m.operation + ')' : ''}...</span>
+                          )}
+                        </div>
                       </div>
                     )}
                     {m.content && <p>{m.content}</p>}
@@ -910,6 +926,10 @@ export default function Home() {
         .message.assistant .message-body { background: #151515; border: 1px solid #222; border-radius: 16px; padding: 16px; flex: 1; }
         
         .loading-state { display: flex; align-items: center; gap: 12px; color: #888; }
+        .loading-info { display: flex; flex-direction: column; gap: 4px; }
+        .loading-text { color: #aaa; font-size: 14px; }
+        .quality-badge { display: inline-block; background: #1a2e1a; color: #22c55e; border: 1px solid #22c55e44; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px; width: fit-content; }
+        .time-estimate { color: #666; font-size: 12px; }
         .spinner { width: 20px; height: 20px; border: 2px solid #333; border-top-color: #22c55e; border-radius: 50%; animation: spin 0.8s linear infinite; }
         .spinner.small { width: 16px; height: 16px; }
         @keyframes spin { to { transform: rotate(360deg); } }
