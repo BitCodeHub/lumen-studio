@@ -116,6 +116,7 @@ export default function Home() {
   const [lastGeneratedImage, setLastGeneratedImage] = useState(null); // Track last generated image for edits
   const [availableLoras, setAvailableLoras] = useState([]);
   const [selectedLora, setSelectedLora] = useState('auto'); // 'auto', 'none', or specific lora name
+  const [selectedQuality, setSelectedQuality] = useState('best'); // 'fast', 'best', 'ultra'
   const [trainedLoras, setTrainedLoras] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [showAdCreator, setShowAdCreator] = useState(false);
@@ -454,7 +455,8 @@ export default function Home() {
           body: JSON.stringify({ 
             prompt: currentInput,
             lora: loraParam,
-            autoLora: selectedLora === 'auto'
+            autoLora: selectedLora === 'auto',
+            quality: selectedQuality
           })
         });
         data = await res.json();
@@ -845,6 +847,31 @@ export default function Home() {
           
           {/* LoRA selection happens automatically in backend - no user-facing UI */}
           
+          {/* Quality selector */}
+          <div className="quality-selector">
+            <button 
+              className={'quality-btn' + (selectedQuality === 'fast' ? ' active fast' : '')}
+              onClick={() => setSelectedQuality('fast')}
+              title="Flux Schnell — ~10 seconds"
+            >
+              ⚡ Fast
+            </button>
+            <button 
+              className={'quality-btn' + (selectedQuality === 'best' ? ' active best' : '')}
+              onClick={() => setSelectedQuality('best')}
+              title="Juggernaut XL — ~30-60 seconds"
+            >
+              ✨ Best
+            </button>
+            <button 
+              className={'quality-btn' + (selectedQuality === 'ultra' ? ' active ultra' : '')}
+              onClick={() => setSelectedQuality('ultra')}
+              title="Flux 2 Dev — ~60-90 seconds"
+            >
+              💎 Ultra
+            </button>
+          </div>
+          
           <div className="input-box">
             <button className="upload-btn" onClick={() => fileInputRef.current?.click()}>📎</button>
             <input
@@ -925,6 +952,12 @@ export default function Home() {
         .avatar { width: 32px; height: 32px; background: #22c55e; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 600; color: #000; flex-shrink: 0; }
         .message.assistant .message-body { background: #151515; border: 1px solid #222; border-radius: 16px; padding: 16px; flex: 1; }
         
+        .quality-selector { display: flex; gap: 6px; max-width: 800px; margin: 0 auto 8px; padding: 0 4px; }
+        .quality-btn { flex: 1; padding: 7px 12px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; color: #666; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+        .quality-btn:hover { border-color: #444; color: #aaa; }
+        .quality-btn.active.fast { background: #1a1a0a; border-color: #ca8a04; color: #facc15; }
+        .quality-btn.active.best { background: #0a1a0a; border-color: #22c55e; color: #22c55e; }
+        .quality-btn.active.ultra { background: #0f0a1a; border-color: #a855f7; color: #c084fc; }
         .loading-state { display: flex; align-items: center; gap: 12px; color: #888; }
         .loading-info { display: flex; flex-direction: column; gap: 4px; }
         .loading-text { color: #aaa; font-size: 14px; }
