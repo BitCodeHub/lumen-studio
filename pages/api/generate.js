@@ -22,12 +22,12 @@ const QUALITY_TIERS = {
   },
   ultra: {
     label: 'Highest Quality',
-    model: 'flux-2-klein-9b-fp8.safetensors',
-    steps: 30,
-    cfg: 3.5,
-    sampler: 'euler',
-    scheduler: 'simple',
-    estimatedTime: '45–75 seconds',
+    model: 'RealVisXL_V4.safetensors',
+    steps: 60,
+    cfg: 5.0,
+    sampler: 'dpmpp_2m_sde',
+    scheduler: 'karras',
+    estimatedTime: '60–90 seconds',
   },
 };
 const AUTH = Buffer.from(process.env.COMFYUI_AUTH || 'lumen:studio2026').toString('base64');
